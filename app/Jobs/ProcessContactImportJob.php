@@ -41,6 +41,10 @@ class ProcessContactImportJob implements ShouldQueue
         ]);
 
         try {
+            // Phase 1: read the CSV file and create ContactImportRow records.
+            $csvImportService->parseAndStore($this->import);
+
+            // Phase 2: process each row and create/update Contact records.
             $csvImportService->processImport($this->import);
 
             Log::info('ProcessContactImportJob: completed', [
