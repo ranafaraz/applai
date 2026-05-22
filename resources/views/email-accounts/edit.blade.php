@@ -1,0 +1,164 @@
+@extends('layouts.app')
+
+@section('title', 'Edit Email Account')
+@section('page-title', 'Edit Email Account')
+
+@section('content')
+<div class="max-w-3xl">
+    <form method="POST" action="{{ route('email-accounts.update', $account) }}" x-data="{ testingSmtp: false, testingImap: false, smtpResult: null, imapResult: null }">
+        @csrf
+        @method('PUT')
+
+        @if($errors->any())
+            <div class="mb-6 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        {{-- Password Warning Banner --}}
+        <div class="mb-6 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex gap-3">
+            <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div class="text-sm text-amber-800">
+                <strong>Password fields are blank for security.</strong> Fill them only to change the password. Leaving them blank will keep the existing passwords.
+            </div>
+        </div>
+
+        {{-- Basic Info --}}
+        <div class="bg-white border border-slate-200 rounded-xl p-6 mb-5">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Basic Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Account Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" value="{{ old('name', $account->name) }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 @error('name') border-red-400 @enderror">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">From Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="from_name" value="{{ old('from_name', $account->from_name) }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 @error('from_name') border-red-400 @enderror">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Sender Email <span class="text-red-500">*</span></label>
+                    <input type="email" name="email" value="{{ old('email', $account->email) }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 @error('email') border-red-400 @enderror">
+                </div>
+            </div>
+        </div>
+
+        {{-- SMTP Settings --}}
+        <div class="bg-white border border-slate-200 rounded-xl p-6 mb-5">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-slate-800">SMTP Settings (Outgoing)</h2>
+                <button type="button"
+                    @click="testingSmtp = true; smtpResult = null; fetch('{{ route('email-accounts.test-smtp') }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify(Object.fromEntries(new FormData($el.closest('form')))) }).then(r => r.json()).then(d => { smtpResult = d; testingSmtp = false; }).catch(() => { smtpResult = {success: false, message: 'Request failed'}; testingSmtp = false; })"
+                    class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+                    :disabled="testingSmtp">
+                    <svg x-show="!testingSmtp" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <svg x-show="testingSmtp" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <span x-text="testingSmtp ? 'Testing...' : 'Test SMTP'"></span>
+                </button>
+            </div>
+            <div x-show="smtpResult !== null" class="mb-4 px-3 py-2 rounded-lg text-sm" :class="smtpResult?.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'" x-text="smtpResult?.message"></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">SMTP Host</label>
+                    <input type="text" name="smtp_host" value="{{ old('smtp_host', $account->smtp_host) }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Port</label>
+                    <input type="number" name="smtp_port" value="{{ old('smtp_port', $account->smtp_port) }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Encryption</label>
+                    <select name="smtp_encryption" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="tls" {{ old('smtp_encryption', $account->smtp_encryption) === 'tls' ? 'selected' : '' }}>TLS</option>
+                        <option value="ssl" {{ old('smtp_encryption', $account->smtp_encryption) === 'ssl' ? 'selected' : '' }}>SSL</option>
+                        <option value="none" {{ old('smtp_encryption', $account->smtp_encryption) === 'none' ? 'selected' : '' }}>None</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                    <input type="text" name="smtp_username" value="{{ old('smtp_username', $account->smtp_username) }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">New Password <span class="text-xs text-slate-400">(leave blank to keep current)</span></label>
+                    <input type="password" name="smtp_password" placeholder="••••••••" autocomplete="new-password" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+        </div>
+
+        {{-- IMAP Settings --}}
+        <div class="bg-white border border-slate-200 rounded-xl p-6 mb-5">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-slate-800">IMAP Settings (Incoming)</h2>
+                <button type="button"
+                    @click="testingImap = true; imapResult = null; fetch('{{ route('email-accounts.test-imap') }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify(Object.fromEntries(new FormData($el.closest('form')))) }).then(r => r.json()).then(d => { imapResult = d; testingImap = false; }).catch(() => { imapResult = {success: false, message: 'Request failed'}; testingImap = false; })"
+                    class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+                    :disabled="testingImap">
+                    <svg x-show="!testingImap" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <svg x-show="testingImap" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <span x-text="testingImap ? 'Testing...' : 'Test IMAP'"></span>
+                </button>
+            </div>
+            <div x-show="imapResult !== null" class="mb-4 px-3 py-2 rounded-lg text-sm" :class="imapResult?.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'" x-text="imapResult?.message"></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">IMAP Host</label>
+                    <input type="text" name="imap_host" value="{{ old('imap_host', $account->imap_host) }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Port</label>
+                    <input type="number" name="imap_port" value="{{ old('imap_port', $account->imap_port) }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Encryption</label>
+                    <select name="imap_encryption" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="ssl" {{ old('imap_encryption', $account->imap_encryption) === 'ssl' ? 'selected' : '' }}>SSL</option>
+                        <option value="tls" {{ old('imap_encryption', $account->imap_encryption) === 'tls' ? 'selected' : '' }}>TLS</option>
+                        <option value="none" {{ old('imap_encryption', $account->imap_encryption) === 'none' ? 'selected' : '' }}>None</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                    <input type="text" name="imap_username" value="{{ old('imap_username', $account->imap_username) }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">New Password <span class="text-xs text-slate-400">(leave blank to keep current)</span></label>
+                    <input type="password" name="imap_password" placeholder="••••••••" autocomplete="new-password" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+        </div>
+
+        {{-- Limits --}}
+        <div class="bg-white border border-slate-200 rounded-xl p-6 mb-5">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Sending Limits</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Daily Limit</label>
+                    <input type="number" name="daily_limit" value="{{ old('daily_limit', $account->daily_limit) }}" min="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Hourly Limit</label>
+                    <input type="number" name="hourly_limit" value="{{ old('hourly_limit', $account->hourly_limit) }}" min="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Min Delay (seconds)</label>
+                    <input type="number" name="min_delay_seconds" value="{{ old('min_delay_seconds', $account->min_delay_seconds) }}" min="0" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+        </div>
+
+        {{-- Notes --}}
+        <div class="bg-white border border-slate-200 rounded-xl p-6 mb-5">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Notes</h2>
+            <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">{{ old('notes', $account->notes) }}</textarea>
+        </div>
+
+        <div class="flex gap-3">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors">Update Account</button>
+            <a href="{{ route('email-accounts.index') }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-6 py-2.5 rounded-lg transition-colors">Cancel</a>
+        </div>
+    </form>
+</div>
+@endsection

@@ -1,0 +1,158 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\StoreOpportunityRequest;
+use App\Http\Requests\UpdateOpportunityRequest;
+use App\Models\Opportunity;
+use App\Models\Tag;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+class OpportunityController extends Controller
+{
+    public function index(Request $request): View
+    {
+        $query = Opportunity::where('user_id', $request->user()->id)
+            ->with('tags');
+
+        // Search
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('organization', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Filters
+        if ($type = $request->input('type')) {
+            $query->where('type', $type);
+        }
+        if ($status = $request->input('status')) {
+            $query->where('status', $status);
+        }
+        if ($priority = $request->input('priority')) {
+            $query->where('priority', $priority);
+        }
+
+        $opportunities = $query->orderByDesc('updated_at')->paginate(25)->withQueryString();
+
+        return view('opportunities.index', compact('opportunities'));
+    }
+
+    public function create(): View
+    {
+        return view('opportunities.create');
+    }
+
+    public function store(StoreOpportunityRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+        $tagIds = $data['tags'] ?? [];
+        $contactIds = $data['contacts'] ?? [];
+        unset($data['tags'], $data['contacts']);
+
+        $data['user_id'] = $request->user()->id;
+        $data['last_activity_at'] = now();
+
+        $opportunity = Opportunity::create($data);
+
+        if ($tagIds) {
+            $opportunity->tags()->sync($tagIds);
+        }
+        if ($contactIds) {
+            $opportunity->contacts()->sync($contactIds);
+        }
+
+        return redirect()->route('opportunities.show', $opportunity->id)
+            ->with('success', 'Opportunity created successfully.');
+    }
+
+    public function show(Request $request, int $id): View
+    {
+        $opportunity = Opportunity::where('user_id', $request->user()->id)
+            ->with([
+                'contacts',
+                'tags',
+                'emailMessages.emailAccount',
+                'followUps',
+                'documents',
+                'timelineEvents' => fn ($q) => $q->orderByDesc('happened_at'),
+            ])
+            ->findOrFail($id);
+
+        $this->authorize('view', $opportunity);
+
+        return view('opportunities.show', compact('opportunity'));
+    }
+
+    public function edit(Request $request, int $id): View
+    {
+        $opportunity = Opportunity::where('user_id', $request->user()->id)
+            ->with(['tags', 'contacts'])
+            ->findOrFail($id);
+
+        $this->authorize('update', $opportunity);
+
+        $tags = Tag::where('user_id', $request->user()->id)->orderBy('name')->get();
+
+        return view('opportunities.edit', compact('opportunity', 'tags'));
+    }
+
+    public function update(UpdateOpportunityRequest $request, int $id): RedirectResponse
+    {
+        $opportunity = Opportunity::where('user_id', $request->user()->id)->findOrFail($id);
+
+        $this->authorize('update', $opportunity);
+
+        $data = $request->validated();
+        $tagIds = $data['tags'] ?? [];
+        $contactIds = $data['contacts'] ?? [];
+        unset($data['tags'], $data['contacts']);
+
+        $data['last_activity_at'] = now();
+
+        $opportunity->update($data);
+        $opportunity->tags()->sync($tagIds);
+        $opportunity->contacts()->sync($contactIds);
+
+        return redirect()->route('opportunities.show', $opportunity->id)
+            ->with('success', 'Opportunity updated successfully.');
+    }
+
+    public function destroy(Request $request, int $id): RedirectResponse
+    {
+        $opportunity = Opportunity::where('user_id', $request->user()->id)->findOrFail($id);
+
+        $this->authorize('delete', $opportunity);
+
+        $opportunity->delete();
+
+        return redirect()->route('opportunities.index')
+            ->with('success', 'Opportunity deleted.');
+    }
+
+    public function updateStatus(Request $request, int $id): RedirectResponse
+    {
+        $opportunity = Opportunity::where('user_id', $request->user()->id)->findOrFail($id);
+
+        $this->authorize('update', $opportunity);
+
+        $request->validate([
+            'status' => 'required|string|max:100',
+        ]);
+
+        $opportunity->update([
+            'status'           => $request->input('status'),
+            'last_activity_at' => now(),
+        ]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['success' => true, 'status' => $opportunity->status]);
+        }
+
+        return redirect()->back()->with('success', 'Status updated.');
+    }
+}
