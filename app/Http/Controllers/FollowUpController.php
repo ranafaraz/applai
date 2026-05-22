@@ -1,0 +1,76 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\FollowUp;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+class FollowUpController extends Controller
+{
+    public function index(Request $request): View
+    {
+        $query = FollowUp::where('user_id', $request->user()->id)
+            ->with(['opportunity', 'contact', 'emailAccount']);
+
+        if ($status = $request->input('status')) {
+            $query->where('status', $status);
+        }
+        if ($opportunityId = $request->input('opportunity_id')) {
+            $query->where('opportunity_id', $opportunityId);
+        }
+        if ($from = $request->input('due_from')) {
+            $query->where('due_at', '>=', $from);
+        }
+        if ($to = $request->input('due_to')) {
+            $query->where('due_at', '<=', $to);
+        }
+
+        $followUps = $query->orderBy('due_at')->paginate(25)->withQueryString();
+
+        return view('follow-ups.index', compact('followUps'));
+    }
+
+    public function show(Request $request, int $id): View
+    {
+        $followUp = FollowUp::where('user_id', $request->user()->id)
+            ->with(['opportunity', 'contact', 'emailAccount', 'emailTemplate', 'emailMessage'])
+            ->findOrFail($id);
+
+        return view('follow-ups.show', compact('followUp'));
+    }
+
+    public function cancel(Request $request, int $id): RedirectResponse
+    {
+        $followUp = FollowUp::where('user_id', $request->user()->id)->findOrFail($id);
+
+        abort_unless($followUp->status === 'pending', 422, 'Only pending follow-ups can be cancelled.');
+
+        $request->validate([
+            'cancel_reason' => 'nullable|string|max:500',
+        ]);
+
+        $followUp->update([
+            'status'        => 'cancelled',
+            'cancel_reason' => $request->input('cancel_reason'),
+        ]);
+
+        return redirect()->back()->with('success', 'Follow-up cancelled.');
+    }
+
+    public function reschedule(Request $request, int $id): RedirectResponse
+    {
+        $followUp = FollowUp::where('user_id', $request->user()->id)->findOrFail($id);
+
+        abort_unless($followUp->status === 'pending', 422, 'Only pending follow-ups can be rescheduled.');
+
+        $request->validate([
+            'due_at' => 'required|date|after:now',
+        ]);
+
+        $followUp->update(['due_at' => $request->input('due_at')]);
+
+        return redirect()->back()->with('success', 'Follow-up rescheduled.');
+    }
+}
