@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\TenantController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ContactController;
@@ -15,6 +18,7 @@ use App\Http\Controllers\OpportunityController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SuppressionListController;
 use App\Http\Controllers\TagController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UserSettingController;
 use Illuminate\Support\Facades\Route;
 
@@ -146,4 +150,37 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     Route::get('settings', [UserSettingController::class, 'edit'])->name('settings.edit');
     Route::put('settings', [UserSettingController::class, 'update'])->name('settings.update');
+
+    // ---------------------------------------------------------------------------
+    // Team management (tenant admins)
+    // ---------------------------------------------------------------------------
+    Route::middleware('require_admin')->group(function () {
+        Route::get('settings/team', [TeamController::class, 'index'])->name('team.index');
+        Route::post('settings/team', [TeamController::class, 'store'])->name('team.store');
+        Route::patch('settings/team/{user}', [TeamController::class, 'update'])->name('team.update');
+        Route::delete('settings/team/{user}', [TeamController::class, 'destroy'])->name('team.destroy');
+        Route::patch('settings/team/{user}/reset-password', [TeamController::class, 'resetPassword'])->name('team.reset-password');
+    });
 });
+
+// ---------------------------------------------------------------------------
+// Super Admin panel
+// ---------------------------------------------------------------------------
+Route::middleware(['auth', 'super_admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+
+        // Tenants CRUD
+        Route::resource('tenants', TenantController::class);
+        Route::patch('tenants/{tenant}/suspend',  [TenantController::class, 'suspend'])->name('tenants.suspend');
+        Route::patch('tenants/{tenant}/activate', [TenantController::class, 'activate'])->name('tenants.activate');
+
+        // Users within a tenant
+        Route::get('users', [AdminUserController::class, 'index'])->name('users.index');
+        Route::post('tenants/{tenant}/users', [AdminUserController::class, 'store'])->name('tenant-users.store');
+        Route::patch('tenants/{tenant}/users/{user}', [AdminUserController::class, 'update'])->name('tenant-users.update');
+        Route::delete('tenants/{tenant}/users/{user}', [AdminUserController::class, 'destroy'])->name('tenant-users.destroy');
+        Route::patch('tenants/{tenant}/users/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('tenant-users.reset-password');
+    });

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -15,10 +16,14 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = [
+        'tenant_id',
         'name',
         'email',
         'password',
         'role',
+        'avatar',
+        'is_active',
+        'last_login_at',
     ];
 
     protected $hidden = [
@@ -30,8 +35,17 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'last_login_at'     => 'datetime',
+            'password'          => 'hashed',
+            'is_active'         => 'boolean',
         ];
+    }
+
+    // ── Relationships ─────────────────────────────────────────────────────────
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
     }
 
     public function emailAccounts(): HasMany
@@ -67,5 +81,50 @@ class User extends Authenticatable
     public function setting(): HasOne
     {
         return $this->hasOne(UserSetting::class);
+    }
+
+    // ── Role helpers ──────────────────────────────────────────────────────────
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === 'super_admin';
+    }
+
+    public function isAdmin(): bool
+    {
+        return in_array($this->role, ['admin', 'super_admin']);
+    }
+
+    public function isMember(): bool
+    {
+        return $this->role === 'member';
+    }
+
+    public function roleLabel(): string
+    {
+        return match ($this->role) {
+            'super_admin' => 'Super Admin',
+            'admin'       => 'Admin',
+            'member'      => 'Member',
+            default       => ucfirst($this->role),
+        };
+    }
+
+    public function roleBadge(): string
+    {
+        return match ($this->role) {
+            'super_admin' => 'bg-purple-100 text-purple-800',
+            'admin'       => 'bg-blue-100 text-blue-800',
+            default       => 'bg-gray-100 text-gray-600',
+        };
+    }
+
+    public function initials(): string
+    {
+        $parts = explode(' ', $this->name);
+        if (count($parts) >= 2) {
+            return strtoupper($parts[0][0] . end($parts)[0]);
+        }
+        return strtoupper(substr($this->name, 0, 2));
     }
 }
