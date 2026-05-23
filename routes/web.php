@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ContactImportController;
 use App\Http\Controllers\DashboardController;
@@ -146,4 +147,12 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     Route::get('settings', [UserSettingController::class, 'edit'])->name('settings.edit');
     Route::put('settings', [UserSettingController::class, 'update'])->name('settings.update');
+
+    // ---------------------------------------------------------------------------
+    // Notifications
+    // ---------------------------------------------------------------------------
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::post('notifications/preferences', [NotificationController::class, 'updatePreference'])->name('notifications.preferences');
 });

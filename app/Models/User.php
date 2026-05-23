@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Notifications\DatabaseNotificationCollection;
 
 class User extends Authenticatable
 {
@@ -67,5 +69,15 @@ class User extends Authenticatable
     public function setting(): HasOne
     {
         return $this->hasOne(UserSetting::class);
+    }
+
+    public function notificationPreferences(): HasMany
+    {
+        return $this->hasMany(NotificationPreference::class);
+    }
+
+    public function notificationDeliveryLogs(): HasMany
+    {
+        return $this->hasMany(NotificationDeliveryLog::class);
     }
 }
