@@ -23,10 +23,12 @@ jobs:
 
             # Pull latest code
             git config --global --add safe.directory /var/www/crm.dexdevs.com
-            git pull origin main
+            git remote set-url origin git@github.com:ranafaraz/personal-crm.git
+            git fetch origin main
+            git reset --hard origin/main
 
             # Install/update PHP dependencies (no dev, optimized)
-            composer install --no-interaction --no-dev --optimize-autoloader
+            COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --no-dev --optimize-autoloader
 
             # Run any pending migrations
             php artisan migrate --force
