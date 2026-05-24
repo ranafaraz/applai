@@ -109,13 +109,22 @@ jobs:
             php /tmp/redispatch_imports.php 2>&1 | head -20 || true
             rm -f /tmp/redispatch_imports.php
 
+            # ── Diagnostic: storage files ─────────────────────────────
+            echo "=== storage/app/private/imports/ ==="
+            ls -lh /var/www/crm.dexdevs.com/storage/app/private/imports/ 2>/dev/null || echo "directory missing"
+            echo "==="
+
             # ── Process any pending imports right now ─────────────────
             php artisan queue:work \
               --stop-when-empty \
               --timeout=600 \
               --tries=1 \
               --max-jobs=200 \
-              2>/dev/null || true
+              2>&1 || true
+
+            echo "=== last 40 lines of laravel.log after queue:work ==="
+            tail -40 /var/www/crm.dexdevs.com/storage/logs/laravel.log 2>/dev/null || true
+            echo "==="
 
             set -e
             # ─────────────────────────────────────────────────────────
