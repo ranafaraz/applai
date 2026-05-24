@@ -87,11 +87,27 @@ jobs:
             supervisorctl restart crm-queue:* 2>/dev/null || supervisorctl start crm-queue:* 2>/dev/null || true
             supervisorctl status crm-queue:* 2>/dev/null || true
 
-            # ── Show recent import errors from Laravel log ────────────
-            echo "=== Recent import-related log entries ==="
-            grep -h "ContactImport\|ProcessContactImport\|CsvImport\|parseAndStore" \
-              /var/www/crm.dexdevs.com/storage/logs/laravel.log 2>/dev/null | tail -30 || true
-            echo "==="
+            # ── Re-dispatch failed imports whose files now resolve correctly ──
+            # Handles the storage/app/private fix: imports that failed only because
+            # the service looked in storage/app/ instead of storage/app/private/.
+            {
+              printf '%s\n' '<?php'
+              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
+              printf '%s\n' 'require "vendor/autoload.php";'
+              printf '%s\n' '$app = require "bootstrap/app.php";'
+              printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
+              printf '%s\n' 'use Illuminate\Support\Facades\Storage;'
+              printf '%s\n' 'foreach (\App\Models\ContactImport::where("status","failed")->get() as $i) {'
+              printf '%s\n' '    $path = Storage::disk("local")->path($i->file_path);'
+              printf '%s\n' '    if (file_exists($path) && $i->rows()->count() === 0) {'
+              printf '%s\n' '        $i->update(["status"=>"pending","error_message"=>null,"total_rows"=>0,"processed_rows"=>0,"imported_rows"=>0,"failed_rows"=>0,"skipped_rows"=>0]);'
+              printf '%s\n' '        \App\Jobs\ProcessContactImportJob::dispatch($i);'
+              printf '%s\n' '        echo "Redispatched contact import #".$i->id.": ".$i->file_name."\n";'
+              printf '%s\n' '    } else { echo "Skipping contact import #".$i->id." (file missing or rows exist)\n"; }'
+              printf '%s\n' '}'
+            } > /tmp/redispatch_imports.php
+            php /tmp/redispatch_imports.php 2>&1 | head -20 || true
+            rm -f /tmp/redispatch_imports.php
 
             # ── Process any pending imports right now ─────────────────
             php artisan queue:work \
