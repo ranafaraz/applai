@@ -141,7 +141,7 @@ jobs:
               printf '%s\n' 'auth()->login($user);'
               printf '%s\n' 'echo "auth logged in\n";'
               printf '%s\n' 'try {'
-              printf '%s\n' '    $html = view("email-templates.create")->render();'
+              printf '%s\n' '    $html = view("email-templates.create", ["errors" => new \Illuminate\Support\ViewErrorBag()])->render();'
               printf '%s\n' '    echo "render OK: ".strlen($html)." bytes\n";'
               printf '%s\n' '} catch (\Throwable $e) {'
               printf '%s\n' '    echo "EXCEPTION: ".get_class($e).": ".$e->getMessage()."\n";'
