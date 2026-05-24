@@ -33,7 +33,7 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Subject <span class="text-red-500">*</span></label>
-                <input type="text" name="subject" value="{{ old('subject') }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Application for {{"{{"}}position{{"}}"}} at {{"{{"}}company{{"}}"}}">
+                <input type="text" name="subject" value="{{ old('subject') }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Application for @{{ position }} at @{{ company }}">
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Body <span class="text-red-500">*</span></label>
