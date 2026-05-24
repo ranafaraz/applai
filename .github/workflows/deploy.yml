@@ -48,21 +48,25 @@ jobs:
             # Install supervisor if missing
             command -v supervisorctl >/dev/null 2>&1 || apt-get install -y supervisor >/dev/null 2>&1
 
-            # Write the supervisor program config
+            # Resolve full PHP binary path so supervisor can find it without $PATH tricks
+            PHP_BIN=$(command -v php || which php || echo /usr/bin/php)
+
+            # Write supervisor config using echo lines (avoids heredoc indentation issues in YAML)
             mkdir -p /etc/supervisor/conf.d
-            cat > /etc/supervisor/conf.d/crm-queue.conf << 'SUPEOF'
-            [program:crm-queue]
-            process_name=%(program_name)s_%(process_num)02d
-            command=php /var/www/crm.dexdevs.com/artisan queue:work database --sleep=3 --tries=1 --timeout=600 --max-time=3600
-            directory=/var/www/crm.dexdevs.com
-            autostart=true
-            autorestart=true
-            user=root
-            numprocs=1
-            redirect_stderr=true
-            stdout_logfile=/var/log/crm-queue.log
-            stopwaitsecs=3600
-            SUPEOF
+            {
+              printf '[program:crm-queue]\n'
+              printf 'process_name=%%(program_name)s_%%(process_num)02d\n'
+              printf "command=$PHP_BIN /var/www/crm.dexdevs.com/artisan queue:work database --sleep=3 --tries=1 --timeout=600 --max-time=3600\n"
+              printf 'directory=/var/www/crm.dexdevs.com\n'
+              printf 'autostart=true\n'
+              printf 'autorestart=true\n'
+              printf 'user=root\n'
+              printf 'numprocs=1\n'
+              printf 'redirect_stderr=true\n'
+              printf 'stdout_logfile=/var/log/crm-queue.log\n'
+              printf 'stopwaitsecs=3600\n'
+              printf 'environment=PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"\n'
+            } > /etc/supervisor/conf.d/crm-queue.conf
 
             # Ensure supervisord is running, then reload config
             service supervisor start 2>/dev/null || true
@@ -74,9 +78,15 @@ jobs:
 
             # Restart (or start) the crm-queue worker
             supervisorctl restart crm-queue:* 2>/dev/null || supervisorctl start crm-queue:* 2>/dev/null || true
+            supervisorctl status crm-queue:* 2>/dev/null || true
+
+            # ── Show recent import errors from Laravel log ────────────
+            echo "=== Recent import-related log entries ==="
+            grep -h "ContactImport\|ProcessContactImport\|CsvImport\|parseAndStore" \
+              /var/www/crm.dexdevs.com/storage/logs/laravel.log 2>/dev/null | tail -30 || true
+            echo "==="
 
             # ── Process any pending imports right now ─────────────────
-            # (handles jobs queued while the worker was down)
             php artisan queue:work \
               --stop-when-empty \
               --timeout=600 \
