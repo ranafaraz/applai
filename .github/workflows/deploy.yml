@@ -109,9 +109,27 @@ jobs:
             php /tmp/redispatch_imports.php 2>&1 | head -20 || true
             rm -f /tmp/redispatch_imports.php
 
-            # ── Diagnostic: storage files ─────────────────────────────
-            echo "=== storage/app/private/imports/ ==="
-            ls -lh /var/www/crm.dexdevs.com/storage/app/private/imports/ 2>/dev/null || echo "directory missing"
+            # ── Diagnostic: find csv/txt files in storage + DB paths ─
+            echo "=== find csv/txt in storage ==="
+            find /var/www/crm.dexdevs.com/storage -name "*.txt" -o -name "*.csv" 2>/dev/null | head -20 || true
+            echo "==="
+            {
+              printf '%s\n' '<?php'
+              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
+              printf '%s\n' 'require "vendor/autoload.php";'
+              printf '%s\n' '$app = require "bootstrap/app.php";'
+              printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
+              printf '%s\n' 'foreach (\App\Models\ContactImport::orderBy("id")->get() as $i) {'
+              printf '%s\n' '    $disk = \Illuminate\Support\Facades\Storage::disk("local");'
+              printf '%s\n' '    $resolved = $disk->path($i->file_path);'
+              printf '%s\n' '    $exists = file_exists($resolved) ? "YES" : "NO";'
+              printf '%s\n' '    echo "ID:{$i->id} status:{$i->status} fp:[{$i->file_path}] resolved:[{$resolved}] exists:{$exists}\n";'
+              printf '%s\n' '    if ($i->error_message) echo "  err: {$i->error_message}\n";'
+              printf '%s\n' '}'
+            } > /tmp/diag_imports.php
+            echo "=== contact_imports DB rows ==="
+            php /tmp/diag_imports.php 2>&1 | head -30 || true
+            rm -f /tmp/diag_imports.php
             echo "==="
 
             # ── Process any pending imports right now ─────────────────
