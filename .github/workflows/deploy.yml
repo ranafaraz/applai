@@ -176,11 +176,12 @@ jobs:
 
             # ── Seed ranafarazahmed@gmail.com account ─────────────────
             # Idempotent: leaves existing accounts/templates alone, only adds what's missing.
-            # Passwords come from GitHub secrets if set; otherwise create-account is skipped
-            # but existing accounts still get connection-tested + receive a real test email.
+            # Passwords come from GitHub secrets if set, otherwise fall back to the
+            # values that match what's in setup_admin.php / the user's local .env.
+            # To rotate: change here and in your Gmail App Password settings.
             echo "=== crm:seed-user (with --send-test) ==="
-            export MY_PERSONAL_GMAIL_APP_PASSWORD="${MY_PERSONAL_GMAIL_APP_PASSWORD:-}"
-            export DEXDEVS_GMAIL_APP_PASSWORD="${DEXDEVS_GMAIL_APP_PASSWORD:-}"
+            export MY_PERSONAL_GMAIL_APP_PASSWORD="${MY_PERSONAL_GMAIL_APP_PASSWORD:-vpwjarzjwnhrsphh}"
+            export DEXDEVS_GMAIL_APP_PASSWORD="${DEXDEVS_GMAIL_APP_PASSWORD:-utoyiraeomruubaq}"
             php artisan crm:seed-user ranafarazahmed@gmail.com --send-test 2>&1 | tail -80 || true
             echo "==="
 
