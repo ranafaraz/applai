@@ -8,6 +8,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ContactImportController;
+use App\Http\Controllers\OpportunityImportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EmailAccountController;
@@ -118,6 +119,14 @@ Route::middleware('auth')->group(function () {
     // Contact Imports
     // ---------------------------------------------------------------------------
     Route::resource('imports', ContactImportController::class)
+        ->only(['index', 'create', 'store', 'show']);
+
+    // ---------------------------------------------------------------------------
+    // Opportunity Imports
+    // ---------------------------------------------------------------------------
+    Route::get('opportunity-imports/template', [OpportunityImportController::class, 'template'])
+        ->name('opportunity-imports.template');
+    Route::resource('opportunity-imports', OpportunityImportController::class)
         ->only(['index', 'create', 'store', 'show']);
 
     // ---------------------------------------------------------------------------
