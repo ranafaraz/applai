@@ -55,10 +55,16 @@ class ContactImportController extends Controller
             'status'    => 'pending',
         ]));
 
-        ProcessContactImportJob::dispatch($import);
+        // Process synchronously — queue worker reliability is unverified; for
+        // typical CSV sizes this completes in well under the request timeout.
+        try {
+            ProcessContactImportJob::dispatchSync($import);
+        } catch (\Throwable) {
+            // Service already set status=failed + error_message on the import record
+        }
 
         return redirect()->route('imports.show', $import->id)
-            ->with('success', 'Import queued. Rows will be processed in the background.');
+            ->with('success', 'Import processed. Check the results below.');
     }
 
     public function show(Request $request, int $id): View

@@ -122,8 +122,29 @@ jobs:
               --max-jobs=200 \
               2>&1 || true
 
-            echo "=== last 40 lines of laravel.log after queue:work ==="
-            tail -40 /var/www/crm.dexdevs.com/storage/logs/laravel.log 2>/dev/null || true
+            echo "=== last 50 lines of laravel.log ==="
+            tail -50 /var/www/crm.dexdevs.com/storage/logs/laravel.log 2>/dev/null || true
+            echo "==="
+
+            # ── Diagnose email-templates/create view ──────────────────
+            {
+              printf '%s\n' '<?php'
+              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
+              printf '%s\n' 'require "vendor/autoload.php";'
+              printf '%s\n' '$app = require "bootstrap/app.php";'
+              printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
+              printf '%s\n' 'try {'
+              printf '%s\n' '    $compiled = app("blade.compiler")->getCompiledPath(resource_path("views/email-templates/create.blade.php"));'
+              printf '%s\n' '    app("blade.compiler")->compile(resource_path("views/email-templates/create.blade.php"));'
+              printf '%s\n' '    echo "email-templates/create.blade.php compiled OK\n";'
+              printf '%s\n' '} catch (\Throwable $e) {'
+              printf '%s\n' '    echo "COMPILE ERROR: ".$e->getMessage()."\n";'
+              printf '%s\n' '    echo "at ".$e->getFile().":".$e->getLine()."\n";'
+              printf '%s\n' '}'
+            } > /tmp/check_view.php
+            echo "=== email-templates/create view compile check ==="
+            php /tmp/check_view.php 2>&1 || true
+            rm -f /tmp/check_view.php
             echo "==="
 
             set -e
