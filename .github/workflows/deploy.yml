@@ -109,9 +109,9 @@ jobs:
             php /tmp/redispatch_imports.php 2>&1 | head -20 || true
             rm -f /tmp/redispatch_imports.php
 
-            # ── Diagnostic: find csv/txt files in storage + DB paths ─
-            echo "=== find csv/txt in storage ==="
-            find /var/www/crm.dexdevs.com/storage -name "*.txt" -o -name "*.csv" 2>/dev/null | head -20 || true
+            # ── Diagnostic: storage files + direct service test ──────
+            echo "=== all files in storage/app/private/ ==="
+            find /var/www/crm.dexdevs.com/storage/app/private -type f 2>/dev/null | head -20 || true
             echo "==="
             {
               printf '%s\n' '<?php'
@@ -119,17 +119,27 @@ jobs:
               printf '%s\n' 'require "vendor/autoload.php";'
               printf '%s\n' '$app = require "bootstrap/app.php";'
               printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
-              printf '%s\n' 'foreach (\App\Models\ContactImport::orderBy("id")->get() as $i) {'
-              printf '%s\n' '    $disk = \Illuminate\Support\Facades\Storage::disk("local");'
-              printf '%s\n' '    $resolved = $disk->path($i->file_path);'
-              printf '%s\n' '    $exists = file_exists($resolved) ? "YES" : "NO";'
-              printf '%s\n' '    echo "ID:{$i->id} status:{$i->status} fp:[{$i->file_path}] resolved:[{$resolved}] exists:{$exists}\n";'
-              printf '%s\n' '    if ($i->error_message) echo "  err: {$i->error_message}\n";'
+              printf '%s\n' '$import = \App\Models\ContactImport::find(4);'
+              printf '%s\n' 'if (!$import) { echo "Import #4 not found\n"; exit; }'
+              printf '%s\n' '$disk = \Illuminate\Support\Facades\Storage::disk("local");'
+              printf '%s\n' '$path = $disk->path($import->file_path);'
+              printf '%s\n' 'echo "file_path: {$import->file_path}\n";'
+              printf '%s\n' 'echo "resolved:  {$path}\n";'
+              printf '%s\n' 'echo "exists:    ".(file_exists($path)?"YES":"NO")."\n";'
+              printf '%s\n' '$h = @fopen($path,"r");'
+              printf '%s\n' 'if ($h) { echo "first 200 bytes: ".fread($h,200)."\n"; fclose($h); } else { echo "FOPEN FAILED\n"; }'
+              printf '%s\n' 'try {'
+              printf '%s\n' '    $svc = new \App\Services\CsvImportService();'
+              printf '%s\n' '    $svc->parseAndStore($import);'
+              printf '%s\n' '    echo "parseAndStore: SUCCESS\n";'
+              printf '%s\n' '} catch (\Throwable $e) {'
+              printf '%s\n' '    echo "parseAndStore ERROR: ".$e->getMessage()."\n";'
+              printf '%s\n' '    echo "in: ".$e->getFile().":".$e->getLine()."\n";'
               printf '%s\n' '}'
-            } > /tmp/diag_imports.php
-            echo "=== contact_imports DB rows ==="
-            php /tmp/diag_imports.php 2>&1 | head -30 || true
-            rm -f /tmp/diag_imports.php
+            } > /tmp/test_service.php
+            echo "=== direct service test on import #4 ==="
+            php /tmp/test_service.php 2>&1 || true
+            rm -f /tmp/test_service.php
             echo "==="
 
             # ── Process any pending imports right now ─────────────────
