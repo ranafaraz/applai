@@ -37,7 +37,7 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Body <span class="text-red-500">*</span></label>
-                <textarea name="body" rows="15" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Dear {{ '{{' }}first_name{{ '}}' }},&#10;&#10;...">{{ old('body') }}</textarea>
+                <textarea name="body" rows="15" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Dear @{{ first_name }},&#10;&#10;...">{{ old('body') }}</textarea>
             </div>
             <div class="flex gap-3 pt-2">
                 <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2 rounded-lg">Save Template</button>
