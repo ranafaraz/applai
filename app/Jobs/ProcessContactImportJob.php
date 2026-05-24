@@ -41,6 +41,7 @@ class ProcessContactImportJob implements ShouldQueue
         ]);
 
         try {
+            $csvImportService->parseAndStore($this->import);
             $csvImportService->processImport($this->import);
 
             Log::info('ProcessContactImportJob: completed', [

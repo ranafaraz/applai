@@ -64,6 +64,15 @@ class CsvImportService
         'city'       => 'city',
         'location'   => 'city',
 
+        'industry'   => 'industry',
+        'sector'     => 'industry',
+        'vertical'   => 'industry',
+
+        'source'     => 'source',
+        'lead source'=> 'source',
+        'lead_source'=> 'source',
+        'origin'     => 'source',
+
         'notes'      => 'notes',
         'note'       => 'notes',
         'comments'   => 'notes',
@@ -76,8 +85,6 @@ class CsvImportService
      */
     public function parseAndStore(ContactImport $import): void
     {
-        $import->update(['status' => 'parsing']);
-
         try {
             $csv = Reader::createFromPath(storage_path('app/' . $import->file_path), 'r');
             $csv->setHeaderOffset(0);
@@ -127,7 +134,6 @@ class CsvImportService
                 'imported_rows'  => 0,
                 'failed_rows'    => 0,
                 'skipped_rows'   => 0,
-                'status'         => 'parsed',
             ]);
 
         } catch (Throwable $e) {
@@ -260,6 +266,8 @@ class CsvImportService
                 'phone'        => $data['phone'] ?? null,
                 'company'      => $data['company'] ?? null,
                 'job_title'    => $data['job_title'] ?? null,
+                'industry'     => $data['industry'] ?? null,
+                'source'       => $data['source'] ?? null,
                 'linkedin_url' => $data['linkedin_url'] ?? null,
                 'website'      => $data['website'] ?? null,
                 'country'      => $data['country'] ?? null,
