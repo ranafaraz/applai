@@ -31,7 +31,23 @@ class ContactImportController extends Controller
         ]);
 
         $file = $request->file('csv_file');
+
+        // Ensure the imports directory exists (Flysystem silently fails without it on some servers)
+        $importDir = storage_path('app/private/imports');
+        if (! is_dir($importDir)) {
+            mkdir($importDir, 0775, true);
+        }
+
         $path = $file->store('imports', 'local');
+
+        if (! $path) {
+            return back()->withErrors(['csv_file' => 'Failed to save the uploaded file. Please try again.']);
+        }
+
+        $fullPath = storage_path('app/private/' . $path);
+        if (! file_exists($fullPath) || filesize($fullPath) === 0) {
+            return back()->withErrors(['csv_file' => 'Uploaded file appears to be empty or could not be saved. Please try again.']);
+        }
 
         $import = ContactImport::create($this->tenantData([
             'file_name' => $file->getClientOriginalName(),

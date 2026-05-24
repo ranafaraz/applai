@@ -32,7 +32,22 @@ class OpportunityImportController extends Controller
         ]);
 
         $file = $request->file('csv_file');
+
+        $importDir = storage_path('app/private/opportunity-imports');
+        if (! is_dir($importDir)) {
+            mkdir($importDir, 0775, true);
+        }
+
         $path = $file->store('opportunity-imports', 'local');
+
+        if (! $path) {
+            return back()->withErrors(['csv_file' => 'Failed to save the uploaded file. Please try again.']);
+        }
+
+        $fullPath = storage_path('app/private/' . $path);
+        if (! file_exists($fullPath) || filesize($fullPath) === 0) {
+            return back()->withErrors(['csv_file' => 'Uploaded file appears to be empty or could not be saved. Please try again.']);
+        }
 
         $import = OpportunityImport::create($this->tenantData([
             'file_name' => $file->getClientOriginalName(),

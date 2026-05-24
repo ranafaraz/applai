@@ -6,7 +6,7 @@
     <div class="mb-4"><a href="{{ route('email-templates.index') }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to Templates</a></div>
     <div class="bg-white border border-slate-200 rounded-xl p-6">
         <div class="mb-5 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
-            Use <code class="font-mono bg-blue-100 px-1 rounded">{{"{{"}}variable_name{{"}}"}}</code> syntax for dynamic placeholders. e.g. <code class="font-mono bg-blue-100 px-1 rounded">{{"{{"}}first_name{{"}}"}}</code>, <code class="font-mono bg-blue-100 px-1 rounded">{{"{{"}}company{{"}}"}}</code>, <code class="font-mono bg-blue-100 px-1 rounded">{{"{{"}}position{{"}}"}}</code>
+            Use <code class="font-mono bg-blue-100 px-1 rounded">@{{ variable_name }}</code> syntax for dynamic placeholders. e.g. <code class="font-mono bg-blue-100 px-1 rounded">@{{ first_name }}</code>, <code class="font-mono bg-blue-100 px-1 rounded">@{{ company }}</code>, <code class="font-mono bg-blue-100 px-1 rounded">@{{ position }}</code>
         </div>
         <form method="POST" action="{{ route('email-templates.store') }}" class="space-y-5">
             @csrf
