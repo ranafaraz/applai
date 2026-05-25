@@ -179,6 +179,21 @@ class SeedUserAccountCommand extends Command
 
         $existing = EmailAccount::where('user_id', $user->id)->where('email', $email)->first();
         if ($existing) {
+            // If env now provides a password and the existing account has none
+            // (or a wrong placeholder), sync it. Otherwise leave alone.
+            if ($password) {
+                $currentSmtp = $existing->getRawOriginal('smtp_password');
+                if (empty($existing->smtp_password) || $existing->smtp_password === '' || empty($currentSmtp)) {
+                    $existing->update([
+                        'smtp_password' => $password,
+                        'imap_password' => $password,
+                        'is_active'     => true,
+                        'notes'         => "Self-hosted mailbox on mail.{$domain}. Password synced from {$envName}.",
+                    ]);
+                    $this->info("  updated password: {$email} (id #{$existing->id})");
+                    return;
+                }
+            }
             $this->line("  exists: {$email} (id #{$existing->id}) — left unchanged");
             return;
         }

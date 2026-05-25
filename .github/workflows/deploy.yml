@@ -214,12 +214,6 @@ jobs:
             php artisan crm:provision-mailboxes 2>&1 | tail -40 || true
             echo "==="
 
-            # ── Discover Spatie ActivityLog trait location (one-time diag) ──
-            echo "=== Spatie ActivityLog trait discovery ==="
-            find /var/www/crm.dexdevs.com/vendor/spatie/laravel-activitylog/src -name '*.php' 2>/dev/null | head -10
-            grep -rn 'trait LogsActivity' /var/www/crm.dexdevs.com/vendor/spatie/laravel-activitylog/src 2>/dev/null | head -5
-            echo "==="
-
             # ── Seed ranafarazahmed@gmail.com account ─────────────────
             # Idempotent: leaves existing accounts/templates alone, only adds what's missing.
             # Gmail app passwords + the three info@<domain> mailbox passwords
