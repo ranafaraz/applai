@@ -8,21 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\LogOptions;
-use Spatie\Activitylog\LogsActivity;
 
 class EmailTemplate extends Model
 {
-    use HasFactory, SoftDeletes, Tenantable, LogsActivity;
-
-    public function getActivitylogOptions(): LogOptions
-    {
-        return LogOptions::defaults()
-            ->logOnly(['name', 'subject', 'body', 'type', 'is_active'])
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
-            ->setDescriptionForEvent(fn (string $event) => "Email template {$event}");
-    }
+    use HasFactory, SoftDeletes, Tenantable;
 
     protected $fillable = [
         'tenant_id',

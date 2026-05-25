@@ -11,21 +11,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\LogOptions;
-use Spatie\Activitylog\LogsActivity;
 
 class Contact extends Model
 {
-    use HasFactory, SoftDeletes, Tenantable, LogsActivity;
-
-    public function getActivitylogOptions(): LogOptions
-    {
-        return LogOptions::defaults()
-            ->logOnly(['first_name', 'last_name', 'email', 'phone', 'company', 'industry', 'job_title', 'status', 'source'])
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
-            ->setDescriptionForEvent(fn (string $event) => "Contact {$event}");
-    }
+    use HasFactory, SoftDeletes, Tenantable;
+    // LogsActivity trait re-added once we confirm Spatie v5 trait location
+    // via the deploy diagnostic — see ProvisionDomainMailboxesCommand log.
 
     protected $fillable = [
         'tenant_id',
