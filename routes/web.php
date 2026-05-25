@@ -16,6 +16,7 @@ use App\Http\Controllers\EmailMessageController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\FollowUpController;
 use App\Http\Controllers\InboxMessageController;
+use App\Http\Controllers\LookupController;
 use App\Http\Controllers\OpportunityController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SuppressionListController;
@@ -60,6 +61,8 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     // Contacts
     // ---------------------------------------------------------------------------
+    Route::post('contacts/quick-store', [ContactController::class, 'quickStore'])
+        ->name('contacts.quick-store');
     Route::resource('contacts', ContactController::class);
     Route::post('contacts/{id}/suppress', [ContactController::class, 'suppress'])
         ->name('contacts.suppress');
@@ -122,6 +125,9 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     Route::get('imports/template', [ContactImportController::class, 'template'])
         ->name('imports.template');
+
+    // Master lookup autocomplete (country, industry, source, city, designation)
+    Route::get('lookups/{type}', [LookupController::class, 'index'])->name('lookups.index');
     Route::resource('imports', ContactImportController::class)
         ->only(['index', 'create', 'store', 'show']);
 

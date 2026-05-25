@@ -44,16 +44,11 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Industry</label>
-                    <input type="text" name="industry" value="{{ old('industry') }}" list="industry-list" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Technology, Finance...">
-                    <datalist id="industry-list">
-                        @foreach(['Technology','Finance','Healthcare','Education','Marketing','Legal','Real Estate','Manufacturing','Retail','Consulting','Media & Entertainment','Non-profit','Government','Transportation','Energy','Construction'] as $ind)
-                            <option value="{{ $ind }}">
-                        @endforeach
-                    </datalist>
+                    @include('partials._lookup-input', ['type' => 'industry', 'name' => 'industry', 'value' => old('industry'), 'placeholder' => 'e.g. Technology, Finance...'])
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
-                    <input type="text" name="job_title" value="{{ old('job_title') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    @include('partials._lookup-input', ['type' => 'designation', 'name' => 'job_title', 'value' => old('job_title'), 'placeholder' => 'e.g. CEO, Software Engineer...'])
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">LinkedIn URL</label>
@@ -65,15 +60,15 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">City</label>
-                    <input type="text" name="city" value="{{ old('city') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    @include('partials._lookup-input', ['type' => 'city', 'name' => 'city', 'value' => old('city')])
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Country</label>
-                    <input type="text" name="country" value="{{ old('country') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    @include('partials._lookup-input', ['type' => 'country', 'name' => 'country', 'value' => old('country'), 'placeholder' => 'Type to search…'])
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-slate-700 mb-1">Source</label>
-                    <input type="text" name="source" value="{{ old('source') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="How did you find this contact?">
+                    @include('partials._lookup-input', ['type' => 'source', 'name' => 'source', 'value' => old('source'), 'placeholder' => 'e.g. LinkedIn, Referral, Conference…'])
                 </div>
 
                 {{-- Linked Opportunities (multi-select with search) --}}

@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             OpportunitySeeder::class,
             EmailTemplateSeeder::class,
             TagSeeder::class,
+            LookupSeeder::class,
         ]);
     }
 }

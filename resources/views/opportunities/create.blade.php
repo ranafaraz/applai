@@ -92,6 +92,7 @@
                         </ul>
                     </div>
                     <p class="text-xs text-slate-400 mt-1">Linked contacts will appear on the opportunity's contact list and email threads.</p>
+                    @include('partials._quick-contact-modal')
                 </div>
 
                 {{-- Tags picker with inline creation --}}

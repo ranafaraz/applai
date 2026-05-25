@@ -201,6 +201,19 @@ jobs:
             rm -f /tmp/state2.php
             echo "==="
 
+            # ── Seed lookups (countries + industries) ─────────────────
+            echo "=== db:seed --class=LookupSeeder ==="
+            php artisan db:seed --class=LookupSeeder --force 2>&1 | tail -20 || true
+            echo "==="
+
+            # ── Provision PostfixAdmin mailboxes (info@<domain>) ──────
+            # Inserts missing mailbox rows directly into PostfixAdmin's MySQL DB
+            # and prints generated passwords + env-var-friendly export lines so
+            # they can be plugged into seed-user on the next run.
+            echo "=== crm:provision-mailboxes ==="
+            php artisan crm:provision-mailboxes 2>&1 | tail -40 || true
+            echo "==="
+
             # ── Seed ranafarazahmed@gmail.com account ─────────────────
             # Idempotent: leaves existing accounts/templates alone, only adds what's missing.
             # Passwords come from GitHub secrets if set, otherwise fall back to the

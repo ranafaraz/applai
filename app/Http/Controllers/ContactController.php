@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreContactRequest;
 use App\Http\Requests\UpdateContactRequest;
 use App\Models\Contact;
+use App\Models\Lookup;
 use App\Models\Opportunity;
 use App\Models\SuppressionList;
 use App\Models\Tag;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -67,6 +69,8 @@ class ContactController extends Controller
             $contact->opportunities()->sync($opportunityIds);
         }
 
+        $this->recordLookups($contact, $request->user()->tenant_id);
+
         return redirect()->route('contacts.show', $contact->id)
             ->with('success', 'Contact created successfully.');
     }
@@ -113,8 +117,20 @@ class ContactController extends Controller
         $contact->tags()->sync($tagIds);
         $contact->opportunities()->sync($opportunityIds);
 
+        $this->recordLookups($contact, $request->user()->tenant_id);
+
         return redirect()->route('contacts.show', $contact->id)
             ->with('success', 'Contact updated successfully.');
+    }
+
+    /** Write free-form lookup values back so future autocompletes include them. */
+    private function recordLookups(Contact $contact, ?int $tenantId): void
+    {
+        Lookup::record('country',  $contact->country,  $tenantId);
+        Lookup::record('city',     $contact->city,     $tenantId);
+        Lookup::record('industry', $contact->industry, $tenantId);
+        Lookup::record('source',   $contact->source,   $tenantId);
+        Lookup::record('designation', $contact->job_title, $tenantId);
     }
 
     public function destroy(Request $request, int $id): RedirectResponse
@@ -125,6 +141,52 @@ class ContactController extends Controller
         $contact->delete();
 
         return redirect()->route('contacts.index')->with('success', 'Contact deleted.');
+    }
+
+    /**
+     * Lightweight JSON endpoint to create a contact inline from an
+     * opportunity form modal. Returns the new contact's id + display fields.
+     */
+    public function quickStore(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name'  => 'nullable|string|max:255',
+            'email'      => 'required|email|max:255',
+            'company'    => 'nullable|string|max:255',
+            'job_title'  => 'nullable|string|max:255',
+            'phone'      => 'nullable|string|max:50',
+        ]);
+
+        $existing = $this->tenantQuery(Contact::class)
+            ->where('email', strtolower($data['email']))
+            ->first();
+        if ($existing) {
+            return response()->json([
+                'id'       => $existing->id,
+                'label'    => trim($existing->first_name . ' ' . $existing->last_name) ?: $existing->email,
+                'sublabel' => $existing->email . ($existing->company ? ' · ' . $existing->company : ''),
+                'created'  => false,
+            ]);
+        }
+
+        $data['email']  = strtolower($data['email']);
+        $data['status'] = 'active';
+        $data['source'] = $data['source'] ?? 'inline_modal';
+        $contact = Contact::create($this->tenantData($data));
+
+        // Record city/industry/source values into lookups for future autocomplete
+        $tenantId = $request->user()->tenant_id;
+        Lookup::record('city',     $contact->city,     $tenantId);
+        Lookup::record('industry', $contact->industry, $tenantId);
+        Lookup::record('source',   $contact->source,   $tenantId);
+
+        return response()->json([
+            'id'       => $contact->id,
+            'label'    => trim($contact->first_name . ' ' . $contact->last_name) ?: $contact->email,
+            'sublabel' => $contact->email . ($contact->company ? ' · ' . $contact->company : ''),
+            'created'  => true,
+        ], 201);
     }
 
     public function suppress(Request $request, int $id): RedirectResponse

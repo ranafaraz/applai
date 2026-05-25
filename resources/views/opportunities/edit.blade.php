@@ -92,6 +92,7 @@
                             </template>
                         </ul>
                     </div>
+                    @include('partials._quick-contact-modal')
                 </div>
 
                 {{-- Tags picker with inline creation --}}
