@@ -214,6 +214,13 @@ jobs:
             php artisan crm:provision-mailboxes 2>&1 | tail -40 || true
             echo "==="
 
+            # ── One-shot LogOptions discovery ─────────────────────────
+            echo "=== LogOptions discovery ==="
+            grep -rln 'class LogOptions' /var/www/crm.dexdevs.com/vendor/spatie/laravel-activitylog/src 2>/dev/null | head -5
+            grep -rn 'namespace.*Activitylog' /var/www/crm.dexdevs.com/vendor/spatie/laravel-activitylog/src/Models/Concerns/LogsActivity.php 2>/dev/null | head -5
+            grep -n 'use.*LogOptions' /var/www/crm.dexdevs.com/vendor/spatie/laravel-activitylog/src/Models/Concerns/LogsActivity.php 2>/dev/null | head -5
+            echo "==="
+
             # ── Seed ranafarazahmed@gmail.com account ─────────────────
             # Idempotent: leaves existing accounts/templates alone, only adds what's missing.
             # Gmail app passwords + the three info@<domain> mailbox passwords
