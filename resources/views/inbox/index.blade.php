@@ -64,6 +64,7 @@
                 <thead class="bg-slate-50 border-b border-slate-200">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">From</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Account</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Subject</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Labels</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Received</th>
@@ -83,6 +84,14 @@
                         <td class="px-4 py-3">
                             <p class="text-slate-800 truncate max-w-[160px]">{{ $msg->from_name ?? $msg->from_email }}</p>
                             <p class="text-xs text-slate-400">{{ $msg->from_email }}</p>
+                        </td>
+                        <td class="px-4 py-3">
+                            @if($msg->emailAccount)
+                                <p class="text-xs text-slate-700 truncate max-w-[160px]" title="{{ $msg->emailAccount->email }}">{{ $msg->emailAccount->name }}</p>
+                                <p class="text-xs text-slate-400 truncate max-w-[160px]">{{ $msg->emailAccount->email }}</p>
+                            @else
+                                <span class="text-xs text-slate-400">—</span>
+                            @endif
                         </td>
                         <td class="px-4 py-3 max-w-xs truncate text-slate-700">{{ $msg->subject ?? '(no subject)' }}</td>
                         <td class="px-4 py-3">

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreContactRequest;
 use App\Http\Requests\UpdateContactRequest;
 use App\Models\Contact;
+use App\Models\Opportunity;
 use App\Models\SuppressionList;
 use App\Models\Tag;
 use Illuminate\Http\RedirectResponse;
@@ -43,19 +44,27 @@ class ContactController extends Controller
     public function create(): View
     {
         $tags = $this->tenantQuery(Tag::class)->orderBy('name')->get();
-        return view('contacts.create', compact('tags'));
+        $opportunities = $this->tenantQuery(Opportunity::class)
+            ->orderByDesc('updated_at')
+            ->get(['id', 'title', 'organization', 'status']);
+
+        return view('contacts.create', compact('tags', 'opportunities'));
     }
 
     public function store(StoreContactRequest $request): RedirectResponse
     {
-        $data   = $request->validated();
-        $tagIds = $data['tags'] ?? [];
-        unset($data['tags']);
+        $data           = $request->validated();
+        $tagIds         = $data['tags'] ?? [];
+        $opportunityIds = $data['opportunities'] ?? [];
+        unset($data['tags'], $data['opportunities']);
 
         $contact = Contact::create($this->tenantData($data));
 
         if ($tagIds) {
             $contact->tags()->sync($tagIds);
+        }
+        if ($opportunityIds) {
+            $contact->opportunities()->sync($opportunityIds);
         }
 
         return redirect()->route('contacts.show', $contact->id)
@@ -79,12 +88,15 @@ class ContactController extends Controller
 
     public function edit(Request $request, int $id): View
     {
-        $contact = $this->tenantQuery(Contact::class)->with('tags')->findOrFail($id);
+        $contact = $this->tenantQuery(Contact::class)->with(['tags', 'opportunities'])->findOrFail($id);
         $this->authorize('update', $contact);
 
         $tags = $this->tenantQuery(Tag::class)->orderBy('name')->get();
+        $opportunities = $this->tenantQuery(Opportunity::class)
+            ->orderByDesc('updated_at')
+            ->get(['id', 'title', 'organization', 'status']);
 
-        return view('contacts.edit', compact('contact', 'tags'));
+        return view('contacts.edit', compact('contact', 'tags', 'opportunities'));
     }
 
     public function update(UpdateContactRequest $request, int $id): RedirectResponse
@@ -92,12 +104,14 @@ class ContactController extends Controller
         $contact = $this->tenantQuery(Contact::class)->findOrFail($id);
         $this->authorize('update', $contact);
 
-        $data   = $request->validated();
-        $tagIds = $data['tags'] ?? [];
-        unset($data['tags']);
+        $data           = $request->validated();
+        $tagIds         = $data['tags'] ?? [];
+        $opportunityIds = $data['opportunities'] ?? [];
+        unset($data['tags'], $data['opportunities']);
 
         $contact->update($data);
         $contact->tags()->sync($tagIds);
+        $contact->opportunities()->sync($opportunityIds);
 
         return redirect()->route('contacts.show', $contact->id)
             ->with('success', 'Contact updated successfully.');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Contact;
 use App\Models\ContactImport;
 use App\Models\ContactImportRow;
+use App\Models\Opportunity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -29,6 +30,11 @@ class ContactImportController extends Controller
         'industry'   => 'industry',   'sector' => 'industry', 'vertical' => 'industry',
         'source'     => 'source',     'lead_source' => 'source', 'origin' => 'source',
         'notes'      => 'notes',      'note' => 'notes', 'comments' => 'notes', 'comment' => 'notes',
+
+        // Linking: semicolon/comma separated list of opportunity titles to attach
+        'opportunity_titles'  => 'opportunity_titles',
+        'opportunities'       => 'opportunity_titles',
+        'linked_opportunities' => 'opportunity_titles',
     ];
 
     public function index(Request $request): View
@@ -57,8 +63,8 @@ class ContactImportController extends Controller
         ];
 
         $rows = [
-            ['first_name','last_name','email','company','phone','job_title','industry','linkedin_url','website','city','country','source','notes'],
-            ['Jane','Doe','jane@example.com','Acme Corp','+1 555-1234','VP Engineering','SaaS','https://linkedin.com/in/janedoe','https://acme.com','San Francisco','USA','LinkedIn','Met at conference 2025'],
+            ['first_name','last_name','email','company','phone','job_title','industry','linkedin_url','website','city','country','source','notes','opportunity_titles'],
+            ['Jane','Doe','jane@example.com','Acme Corp','+1 555-1234','VP Engineering','SaaS','https://linkedin.com/in/janedoe','https://acme.com','San Francisco','USA','LinkedIn','Met at conference 2025','Software Engineer Role; Sr Backend at Acme'],
         ];
 
         $csv = implode("\n", array_map(
@@ -262,6 +268,19 @@ class ContactImportController extends Controller
 
             $contact = Contact::create($contactPayload);
 
+            // Link to opportunities by exact (case-insensitive) title match.
+            // Unknown titles are silently skipped; the contact still imports.
+            $opportunityTitles = $this->parseList($data['opportunity_titles'] ?? '');
+            if (! empty($opportunityTitles)) {
+                $opportunityIds = Opportunity::where('user_id', $import->user_id)
+                    ->whereIn('title', $opportunityTitles)
+                    ->pluck('id')
+                    ->all();
+                if ($opportunityIds) {
+                    $contact->opportunities()->sync($opportunityIds);
+                }
+            }
+
             $row->update([
                 'status'     => 'imported',
                 'contact_id' => $contact->id,
@@ -275,5 +294,26 @@ class ContactImportController extends Controller
             ]);
             return 'failed';
         }
+    }
+
+    /**
+     * Parse a semicolon/comma-separated list of strings into a trimmed unique array.
+     *
+     * @return array<int, string>
+     */
+    private function parseList(?string $raw): array
+    {
+        if (! $raw || trim($raw) === '') {
+            return [];
+        }
+        $parts = preg_split('/[;,]+/', $raw) ?: [];
+        $items = [];
+        foreach ($parts as $p) {
+            $v = trim($p);
+            if ($v !== '') {
+                $items[$v] = true;
+            }
+        }
+        return array_keys($items);
     }
 }

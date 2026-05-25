@@ -29,11 +29,16 @@
             {{-- From Account --}}
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">From Account <span class="text-red-500">*</span></label>
+                @php
+                    $defaultAccountId = old('email_account_id')
+                        ?: request('account_id')
+                        ?: optional($emailAccounts->firstWhere('is_default', true))->id;
+                @endphp
                 <select name="email_account_id" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Select sending account...</option>
                     @foreach($emailAccounts as $account)
-                        <option value="{{ $account->id }}" {{ (old('email_account_id') == $account->id || request('account_id') == $account->id) ? 'selected' : '' }}>
-                            {{ $account->from_name }} &lt;{{ $account->email }}&gt;
+                        <option value="{{ $account->id }}" {{ $defaultAccountId == $account->id ? 'selected' : '' }}>
+                            {{ $account->from_name }} &lt;{{ $account->email }}&gt;@if($account->is_default) ★ default @endif
                         </option>
                     @endforeach
                 </select>

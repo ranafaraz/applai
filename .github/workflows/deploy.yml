@@ -174,6 +174,33 @@ jobs:
             rm -f /tmp/state.php
             echo "==="
 
+            # ── Diagnose Outbox + Audit Log + EmailAccount counts ────────
+            {
+              printf '%s\n' '<?php'
+              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
+              printf '%s\n' 'require "vendor/autoload.php";'
+              printf '%s\n' '$app = require "bootstrap/app.php";'
+              printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
+              printf '%s\n' '$u = \App\Models\User::where("email","ranafarazahmed@gmail.com")->first();'
+              printf '%s\n' 'echo "user id=".$u->id." tenant_id=".$u->tenant_id." role=".$u->role."\n";'
+              printf '%s\n' 'echo "EmailAccount: total=".\App\Models\EmailAccount::where("user_id",$u->id)->count()."\n";'
+              printf '%s\n' 'foreach (\App\Models\EmailAccount::where("user_id",$u->id)->get(["id","email","is_default","smtp_status","imap_status"]) as $a) {'
+              printf '%s\n' '  echo "  #".$a->id." ".$a->email." default=".(int)$a->is_default." smtp=".($a->smtp_status??"-")." imap=".($a->imap_status??"-")."\n";'
+              printf '%s\n' '}'
+              printf '%s\n' 'echo "EmailMessage outbound total=".\App\Models\EmailMessage::where("user_id",$u->id)->where("direction","outbound")->count()."\n";'
+              printf '%s\n' 'foreach (\App\Models\EmailMessage::where("user_id",$u->id)->where("direction","outbound")->orderByDesc("id")->limit(5)->get() as $m) {'
+              printf '%s\n' '  echo "  #".$m->id." status=".$m->status." subject=".substr((string)$m->subject,0,50)."\n";'
+              printf '%s\n' '}'
+              printf '%s\n' 'echo "Activity (audit) total=".\Spatie\Activitylog\Models\Activity::where("causer_id",$u->id)->where("causer_type",\App\Models\User::class)->count()."\n";'
+              printf '%s\n' 'echo "EmailTemplate total=".\App\Models\EmailTemplate::where("user_id",$u->id)->count()."\n";'
+              printf '%s\n' 'echo "InboxMessage total=".\App\Models\InboxMessage::where("user_id",$u->id)->count()."\n";'
+              printf '%s\n' 'echo "Contact total=".\App\Models\Contact::where("user_id",$u->id)->count().", Opportunity total=".\App\Models\Opportunity::where("user_id",$u->id)->count()."\n";'
+            } > /tmp/state2.php
+            echo "=== account / outbox / audit state ==="
+            php /tmp/state2.php 2>&1 || true
+            rm -f /tmp/state2.php
+            echo "==="
+
             # ── Seed ranafarazahmed@gmail.com account ─────────────────
             # Idempotent: leaves existing accounts/templates alone, only adds what's missing.
             # Passwords come from GitHub secrets if set, otherwise fall back to the

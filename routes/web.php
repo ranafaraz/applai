@@ -54,6 +54,8 @@ Route::middleware('auth')->group(function () {
         ->name('email-accounts.test-imap');
     Route::post('email-accounts/{id}/sync-inbox', [EmailAccountController::class, 'syncInbox'])
         ->name('email-accounts.sync-inbox');
+    Route::post('email-accounts/{id}/set-default', [EmailAccountController::class, 'setDefault'])
+        ->name('email-accounts.set-default');
 
     // ---------------------------------------------------------------------------
     // Contacts

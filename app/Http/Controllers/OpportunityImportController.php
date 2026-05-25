@@ -78,8 +78,8 @@ class OpportunityImportController extends Controller
         ];
 
         $rows = [
-            ['title', 'type', 'organization', 'description', 'url', 'status', 'priority', 'deadline', 'notes'],
-            ['Software Engineer Role', 'job', 'Acme Corp', 'Senior backend position', 'https://example.com/job', 'active', 'high', '2026-06-30', 'Referral from John'],
+            ['title', 'type', 'organization', 'description', 'url', 'status', 'priority', 'deadline', 'notes', 'contact_emails'],
+            ['Software Engineer Role', 'job', 'Acme Corp', 'Senior backend position', 'https://example.com/job', 'active', 'high', '2026-06-30', 'Referral from John', 'jane@acme.com;recruiter@acme.com'],
         ];
 
         $csv = implode("\n", array_map(fn ($r) => implode(',', array_map(fn ($v) => '"' . str_replace('"', '""', $v) . '"', $r)), $rows));

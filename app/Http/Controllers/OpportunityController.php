@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreOpportunityRequest;
 use App\Http\Requests\UpdateOpportunityRequest;
+use App\Models\Contact;
 use App\Models\Opportunity;
 use App\Models\Tag;
 use Illuminate\Http\RedirectResponse;
@@ -44,7 +45,11 @@ class OpportunityController extends Controller
     public function create(): View
     {
         $tags = $this->tenantQuery(Tag::class)->orderBy('name')->get();
-        return view('opportunities.create', compact('tags'));
+        $contacts = $this->tenantQuery(Contact::class)
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'last_name', 'email', 'company']);
+
+        return view('opportunities.create', compact('tags', 'contacts'));
     }
 
     public function store(StoreOpportunityRequest $request): RedirectResponse
@@ -98,8 +103,11 @@ class OpportunityController extends Controller
         $this->authorize('update', $opportunity);
 
         $tags = $this->tenantQuery(Tag::class)->orderBy('name')->get();
+        $contacts = $this->tenantQuery(Contact::class)
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'last_name', 'email', 'company']);
 
-        return view('opportunities.edit', compact('opportunity', 'tags'));
+        return view('opportunities.edit', compact('opportunity', 'tags', 'contacts'));
     }
 
     public function update(UpdateOpportunityRequest $request, int $id): RedirectResponse

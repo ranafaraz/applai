@@ -77,6 +77,39 @@
                     <input type="text" name="source" value="{{ old('source', $contact->source) }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
 
+                {{-- Linked Opportunities (multi-select with search) --}}
+                @php
+                    $opportunityRecords = ($opportunities ?? collect())->map(fn ($o) => [
+                        'id'       => $o->id,
+                        'label'    => $o->title,
+                        'sublabel' => trim(($o->organization ? $o->organization . ' · ' : '') . ($o->status ?? '')),
+                    ])->values();
+                    $selectedOpportunityIds = collect(old('opportunities', $contact->opportunities->pluck('id')->all()))->map(fn ($v) => (int) $v)->values();
+                @endphp
+                <div class="md:col-span-2" x-data="recordPicker({{ $opportunityRecords->toJson() }}, {{ $selectedOpportunityIds->toJson() }}, 'opportunities')">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Linked Opportunities</label>
+                    <div class="border border-slate-300 rounded-lg p-2 min-h-[42px] flex flex-wrap gap-1.5 cursor-text" @click="$refs.pickerInput.focus()">
+                        <template x-for="r in selected" :key="r.id">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                <span x-text="r.label"></span>
+                                <input type="hidden" :name="fieldName + '[]'" :value="r.id">
+                                <button type="button" @click.stop="remove(r)" class="hover:text-red-600">&times;</button>
+                            </span>
+                        </template>
+                        <input x-ref="pickerInput" type="text" x-model="search" @input="filterRecords(); open = true" @focus="open = true" @keydown.backspace="backspaceTag()" placeholder="Search opportunities by title or organization..." class="flex-1 min-w-[180px] outline-none text-sm px-1 py-0.5">
+                    </div>
+                    <div x-show="open && filtered.length > 0" @click.outside="open = false" class="relative z-20">
+                        <ul class="absolute top-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto text-sm">
+                            <template x-for="r in filtered.slice(0, 25)" :key="r.id">
+                                <li @click="add(r)" class="px-3 py-2 hover:bg-purple-50 cursor-pointer">
+                                    <div class="font-medium text-slate-800" x-text="r.label"></div>
+                                    <div class="text-xs text-slate-500" x-text="r.sublabel"></div>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+
                 {{-- Tags picker with inline creation --}}
                 <div class="md:col-span-2" x-data="tagPicker({{ $tags->toJson() }}, {{ $contact->tags->pluck('id')->toJson() }})">
                     <label class="block text-sm font-medium text-slate-700 mb-1">Tags / Labels</label>
@@ -121,4 +154,5 @@
 </div>
 
 @include('partials._tag-picker-script')
+@include('partials._record-picker-script')
 @endsection

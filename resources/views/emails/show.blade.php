@@ -34,11 +34,11 @@
         <div class="pt-4 border-t border-slate-100">
             <div class="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-line font-mono leading-relaxed">{{ $email->body }}</div>
         </div>
-        @if($email->emailAttachments->isNotEmpty())
+        @if($email->attachments->isNotEmpty())
             <div class="pt-4 border-t border-slate-100">
                 <p class="text-sm font-semibold text-slate-700 mb-2">Attachments</p>
                 <div class="flex flex-wrap gap-2">
-                    @foreach($email->emailAttachments as $att)
+                    @foreach($email->attachments as $att)
                         <span class="bg-slate-100 text-slate-700 text-xs px-3 py-1.5 rounded-lg">{{ $att->file_name }}</span>
                     @endforeach
                 </div>

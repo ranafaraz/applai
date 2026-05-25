@@ -33,35 +33,42 @@
                         $barColor = $usagePct >= 90 ? 'bg-red-500' : ($usagePct >= 70 ? 'bg-yellow-500' : 'bg-green-500');
                     @endphp
                     <tr class="hover:bg-slate-50">
-                        <td class="px-5 py-3.5 font-medium text-slate-800">{{ $account->name }}</td>
+                        <td class="px-5 py-3.5 font-medium text-slate-800">
+                            <div class="flex items-center gap-2">
+                                <span>{{ $account->name }}</span>
+                                @if($account->is_default)
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded uppercase tracking-wide">Default</span>
+                                @endif
+                            </div>
+                        </td>
                         <td class="px-5 py-3.5 text-slate-600">{{ $account->email }}</td>
                         <td class="px-5 py-3.5">
                             @if($account->smtp_status === 'ok')
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full" title="{{ $account->smtp_last_checked_at?->diffForHumans() }}">
                                     <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Connected
                                 </span>
                             @elseif($account->smtp_status === 'error')
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full cursor-help" title="{{ $account->smtp_last_error }}">
                                     <span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Error
                                 </span>
                             @else
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                                    <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> Unknown
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full" title="Open the account and click Test SMTP">
+                                    <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> Never tested
                                 </span>
                             @endif
                         </td>
                         <td class="px-5 py-3.5">
                             @if($account->imap_status === 'ok')
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full" title="{{ $account->imap_last_checked_at?->diffForHumans() }}">
                                     <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Connected
                                 </span>
                             @elseif($account->imap_status === 'error')
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full cursor-help" title="{{ $account->imap_last_error }}">
                                     <span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Error
                                 </span>
                             @else
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                                    <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> Unknown
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full" title="Open the account and click Test IMAP">
+                                    <span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> Never tested
                                 </span>
                             @endif
                         </td>
@@ -78,11 +85,20 @@
                         </td>
                         <td class="px-5 py-3.5">
                             <div class="flex items-center gap-3">
+                                <a href="{{ route('email-accounts.show', $account) }}" class="text-xs text-slate-600 hover:text-slate-800 font-medium">View</a>
                                 <a href="{{ route('email-accounts.edit', $account) }}" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Edit</a>
-                                <button class="text-xs text-slate-600 hover:text-slate-800 font-medium">Sync</button>
-                                <form method="POST" action="{{ route('email-accounts.destroy', $account) }}" onsubmit="return confirm('Delete this email account?')">
+                                @if(! $account->is_default)
+                                    <form method="POST" action="{{ route('email-accounts.set-default', $account) }}">
+                                        @csrf
+                                        <button type="submit" class="text-xs text-amber-600 hover:text-amber-800 font-medium">Set Default</button>
+                                    </form>
+                                @endif
+                                <form method="POST" action="{{ route('email-accounts.sync-inbox', $account) }}">
                                     @csrf
-                                    @method('DELETE')
+                                    <button type="submit" class="text-xs text-slate-600 hover:text-slate-800 font-medium">Sync</button>
+                                </form>
+                                <form method="POST" action="{{ route('email-accounts.destroy', $account) }}" onsubmit="return confirm('Delete this email account?')">
+                                    @csrf @method('DELETE')
                                     <button type="submit" class="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
                                 </form>
                             </div>

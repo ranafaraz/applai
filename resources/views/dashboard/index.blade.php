@@ -302,15 +302,19 @@
                         <td class="px-5 py-3">
                             @if($account->smtp_status === 'ok')
                                 <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> OK</span>
+                            @elseif($account->smtp_status === 'error')
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full" title="{{ $account->smtp_last_error }}"><span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Error</span>
                             @else
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Error</span>
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> Untested</span>
                             @endif
                         </td>
                         <td class="px-5 py-3">
                             @if($account->imap_status === 'ok')
                                 <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> OK</span>
+                            @elseif($account->imap_status === 'error')
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full" title="{{ $account->imap_last_error }}"><span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Error</span>
                             @else
-                                <span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Error</span>
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> Untested</span>
                             @endif
                         </td>
                         <td class="px-5 py-3 w-40">

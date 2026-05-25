@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Contact;
 use App\Models\Opportunity;
 use App\Models\OpportunityImport;
 use App\Models\OpportunityImportRow;
@@ -55,6 +56,12 @@ class OpportunityImportService
         'note'            => 'notes',
         'comments'        => 'notes',
         'comment'         => 'notes',
+
+        // Linking: semicolon or comma separated list of contact emails
+        'contact_emails'  => 'contact_emails',
+        'contact_email'   => 'contact_emails',
+        'contacts'        => 'contact_emails',
+        'linked_contacts' => 'contact_emails',
     ];
 
     private const VALID_TYPES    = ['job', 'scholarship', 'research', 'grant', 'networking'];
@@ -242,6 +249,19 @@ class OpportunityImportService
                 'notes'        => $data['notes'] ?? null ?: null,
             ]);
 
+            // Link contacts by email (semicolon or comma separated). Unknown
+            // emails are silently skipped — the row still imports successfully.
+            $contactEmails = $this->parseEmails($data['contact_emails'] ?? '');
+            if (! empty($contactEmails)) {
+                $contactIds = Contact::where('user_id', $import->user_id)
+                    ->whereIn('email', $contactEmails)
+                    ->pluck('id')
+                    ->all();
+                if ($contactIds) {
+                    $opportunity->contacts()->sync($contactIds);
+                }
+            }
+
             $row->update([
                 'status'         => 'imported',
                 'opportunity_id' => $opportunity->id,
@@ -271,6 +291,28 @@ class OpportunityImportService
         }
         $normalised = strtolower(trim($value));
         return in_array($normalised, $valid, true) ? $normalised : $default;
+    }
+
+    /**
+     * Parse a delimited list of email addresses into a normalised array.
+     * Accepts comma or semicolon separators; trims whitespace and lowercases.
+     *
+     * @return array<int, string>
+     */
+    private function parseEmails(?string $raw): array
+    {
+        if (! $raw || trim($raw) === '') {
+            return [];
+        }
+        $parts = preg_split('/[;,\s]+/', $raw) ?: [];
+        $emails = [];
+        foreach ($parts as $p) {
+            $e = strtolower(trim($p));
+            if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) {
+                $emails[$e] = true;
+            }
+        }
+        return array_keys($emails);
     }
 
     private function resolveDate(?string $value): ?string

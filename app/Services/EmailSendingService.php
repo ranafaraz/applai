@@ -169,8 +169,20 @@ class EmailSendingService
             $transport->start();
             $transport->stop();
 
+            $account->update([
+                'smtp_status'           => 'ok',
+                'smtp_last_checked_at'  => now(),
+                'smtp_last_error'       => null,
+            ]);
+
             return ['success' => true, 'message' => 'SMTP connection successful.'];
         } catch (Throwable $e) {
+            $account->update([
+                'smtp_status'           => 'error',
+                'smtp_last_checked_at'  => now(),
+                'smtp_last_error'       => mb_substr($e->getMessage(), 0, 500),
+            ]);
+
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }

@@ -134,6 +134,19 @@ class EmailAccountController extends Controller
         return response()->json($result);
     }
 
+    public function setDefault(Request $request, int $id): RedirectResponse
+    {
+        $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);
+
+        $this->authorize('update', $account);
+
+        // Clear any existing defaults for this user, then mark this one
+        EmailAccount::where('user_id', $account->user_id)->update(['is_default' => false]);
+        $account->update(['is_default' => true]);
+
+        return redirect()->back()->with('success', "{$account->email} is now your default sending account.");
+    }
+
     public function syncInbox(Request $request, int $id): RedirectResponse
     {
         $account = $this->tenantQuery(EmailAccount::class)->findOrFail($id);

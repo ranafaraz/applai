@@ -28,8 +28,10 @@ class UpdateContactRequest extends FormRequest
             'notes'         => 'nullable|string|max:10000',
             'status'        => 'nullable|in:active,inactive,suppressed',
             'source'        => 'nullable|string|max:100',
-            'tags'          => 'nullable|array',
-            'tags.*'        => 'integer|exists:tags,id',
+            'tags'           => 'nullable|array',
+            'tags.*'         => 'integer|exists:tags,id',
+            'opportunities'  => 'nullable|array',
+            'opportunities.*' => 'integer|exists:opportunities,id',
         ];
     }
 }

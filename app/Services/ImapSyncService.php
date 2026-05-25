@@ -105,8 +105,21 @@ class ImapSyncService
             $client = $this->buildClient($account);
             $client->connect();
             $client->disconnect();
+
+            $account->update([
+                'imap_status'           => 'ok',
+                'imap_last_checked_at'  => now(),
+                'imap_last_error'       => null,
+            ]);
+
             return ['success' => true, 'message' => 'IMAP connection successful.'];
         } catch (Throwable $e) {
+            $account->update([
+                'imap_status'           => 'error',
+                'imap_last_checked_at'  => now(),
+                'imap_last_error'       => mb_substr($e->getMessage(), 0, 500),
+            ]);
+
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
