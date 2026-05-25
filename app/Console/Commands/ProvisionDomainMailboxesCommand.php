@@ -92,16 +92,40 @@ class ProvisionDomainMailboxesCommand extends Command
 
             $pdo->beginTransaction();
             try {
-                $stmt = $pdo->prepare("INSERT INTO mailbox
-                    (username, password, name, maildir, quota, domain, created, modified, active)
-                    VALUES (:u, :p, :n, :m, 0, :d, NOW(), NOW(), 1)");
-                $stmt->execute([
+                // Discover the actual mailbox column list so we only insert
+                // columns that exist (PostfixAdmin schema differs across
+                // versions — local_part was added in 3.x).
+                $cols = [];
+                foreach ($pdo->query("SHOW COLUMNS FROM mailbox") as $row) {
+                    $cols[$row['Field']] = true;
+                }
+
+                $insertCols   = ['username', 'password', 'name', 'maildir', 'quota', 'domain', 'created', 'modified', 'active'];
+                $insertValues = [':u', ':p', ':n', ':m', '0', ':d', 'NOW()', 'NOW()', '1'];
+                $params       = [
                     ':u' => $email,
                     ':p' => $stored,
                     ':n' => 'Info ' . ucfirst(strstr($domain, '.', true) ?: $domain),
                     ':m' => $maildir,
                     ':d' => $domain,
-                ]);
+                ];
+
+                // PostfixAdmin 3.x+ requires local_part (the bit before @)
+                if (isset($cols['local_part'])) {
+                    $insertCols[]   = 'local_part';
+                    $insertValues[] = ':lp';
+                    $params[':lp']  = strstr($email, '@', true);
+                }
+                // Some installs have a `password2` column too (legacy)
+                if (isset($cols['password2'])) {
+                    $insertCols[]   = 'password2';
+                    $insertValues[] = ':p2';
+                    $params[':p2']  = $stored;
+                }
+
+                $sql = 'INSERT INTO mailbox (' . implode(', ', $insertCols) . ') VALUES (' . implode(', ', $insertValues) . ')';
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
 
                 // PostfixAdmin also creates a self-alias so the address resolves to itself
                 $aliasExists = (int) $pdo->query("SELECT COUNT(*) FROM alias WHERE address = " . $pdo->quote($email))->fetchColumn();
