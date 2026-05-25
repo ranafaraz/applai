@@ -12,10 +12,21 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Opportunity extends Model
 {
-    use HasFactory, SoftDeletes, Tenantable;
+    use HasFactory, SoftDeletes, Tenantable, LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['title', 'type', 'organization', 'status', 'priority', 'deadline'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn (string $event) => "Opportunity {$event}");
+    }
 
     protected $fillable = [
         'tenant_id',

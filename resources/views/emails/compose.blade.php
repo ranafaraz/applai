@@ -1,22 +1,32 @@
 @extends('layouts.app')
 @section('title', 'Compose Email')
 @section('page-title', 'Compose Email')
+
+@push('styles')
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+    <style>
+        .ql-toolbar.ql-snow, .ql-container.ql-snow { border-color: rgb(203 213 225); }
+        .ql-container.ql-snow { min-height: 280px; border-bottom-left-radius: 0.5rem; border-bottom-right-radius: 0.5rem; }
+        .ql-toolbar.ql-snow { border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem; background: rgb(248 250 252); }
+    </style>
+@endpush
+
 @section('content')
-<div class="max-w-3xl" x-data="{
-    sendOption: 'now',
-    templateId: '',
-    loadTemplate() {
-        if (!this.templateId) return;
-        fetch('/emails/template/' + this.templateId)
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('subject').value = data.subject || '';
-                document.getElementById('body').value = data.body || '';
-            });
-    }
-}">
+@php
+    $contactRecords = $contacts->map(fn ($c) => [
+        'id'    => $c->id,
+        'email' => $c->email,
+        'label' => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')) ?: $c->email,
+        'sublabel' => $c->email,
+    ])->values();
+    $defaultAccountId = old('email_account_id')
+        ?: request('account_id')
+        ?: optional($emailAccounts->firstWhere('is_default', true))->id;
+@endphp
+
+<div class="max-w-3xl" x-data="composeForm({{ $contactRecords->toJson() }})">
     <div class="bg-white border border-slate-200 rounded-xl p-6">
-        <form method="POST" action="{{ route('emails.store') }}" class="space-y-4">
+        <form method="POST" action="{{ route('emails.store') }}" enctype="multipart/form-data" class="space-y-4" @submit="syncBody">
             @csrf
             @if($errors->any())
                 <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
@@ -29,11 +39,6 @@
             {{-- From Account --}}
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">From Account <span class="text-red-500">*</span></label>
-                @php
-                    $defaultAccountId = old('email_account_id')
-                        ?: request('account_id')
-                        ?: optional($emailAccounts->firstWhere('is_default', true))->id;
-                @endphp
                 <select name="email_account_id" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Select sending account...</option>
                     @foreach($emailAccounts as $account)
@@ -47,30 +52,19 @@
                 @endif
             </div>
 
-            {{-- To --}}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">To Email <span class="text-red-500">*</span></label>
-                    <input type="email" name="to_email" value="{{ old('to_email') }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="recipient@example.com">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">To Name</label>
-                    <input type="text" name="to_name" value="{{ old('to_name') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Recipient Name">
-                </div>
-            </div>
-
-            {{-- Link to Contact / Opportunity --}}
+            {{-- Link to Contact / Opportunity (sets To when contact picked) --}}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Link to Contact</label>
-                    <select name="contact_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <select name="contact_id" x-model="contactId" @change="onContactSelected" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="">None</option>
                         @foreach($contacts as $contact)
-                            <option value="{{ $contact->id }}" {{ (old('contact_id') == $contact->id || request('contact_id') == $contact->id) ? 'selected' : '' }}>
+                            <option value="{{ $contact->id }}" data-email="{{ $contact->email }}" data-name="{{ $contact->full_name }}" {{ (old('contact_id') == $contact->id || request('contact_id') == $contact->id) ? 'selected' : '' }}>
                                 {{ $contact->full_name }} ({{ $contact->email }})
                             </option>
                         @endforeach
                     </select>
+                    <p class="text-xs text-slate-400 mt-1">Selecting a contact auto-fills the To Email / To Name fields.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Link to Opportunity</label>
@@ -85,39 +79,65 @@
                 </div>
             </div>
 
-            {{-- Template --}}
+            {{-- To --}}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">To Email <span class="text-red-500">*</span></label>
+                    <input type="email" name="to_email" x-model="toEmail" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="recipient@example.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">To Name</label>
+                    <input type="text" name="to_name" x-model="toName" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Recipient Name">
+                </div>
+            </div>
+
+            {{-- Template (loading auto-fills subject + body via fetch) --}}
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Load Template</label>
-                <select x-model="templateId" @change="loadTemplate()" name="template_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <select x-model="templateId" @change="loadTemplate" name="template_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Select template (optional)...</option>
                     @foreach($templates as $template)
                         <option value="{{ $template->id }}">{{ $template->name }}</option>
                     @endforeach
                 </select>
+                <p class="text-xs text-slate-400 mt-1">Loading a template overwrites the subject and body.</p>
             </div>
 
             {{-- Subject --}}
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Subject <span class="text-red-500">*</span></label>
-                <input id="subject" type="text" name="subject" value="{{ old('subject') }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Email subject...">
+                <input id="subject" type="text" name="subject" x-model="subject" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Email subject...">
             </div>
 
-            {{-- Body --}}
+            {{-- Body (Quill rich text editor; hidden input is what posts) --}}
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Body <span class="text-red-500">*</span></label>
-                <textarea id="body" name="body" rows="12" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Write your email here...">{{ old('body') }}</textarea>
+                <div id="composeEditor"></div>
+                <textarea name="body" id="composeBody" class="hidden" required>{{ old('body') }}</textarea>
             </div>
 
-            {{-- CC / BCC --}}
+            {{-- CC / BCC (comma-separated; supports type-ahead from contacts) --}}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">CC</label>
-                    <input type="text" name="cc" value="{{ old('cc') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="cc@example.com, ...">
+                    <input type="text" name="cc" x-model="cc" list="contactEmails" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="cc1@example.com, cc2@example.com">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">BCC</label>
-                    <input type="text" name="bcc" value="{{ old('bcc') }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="bcc@example.com, ...">
+                    <input type="text" name="bcc" x-model="bcc" list="contactEmails" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="bcc1@example.com, bcc2@example.com">
                 </div>
+                <datalist id="contactEmails">
+                    @foreach($contacts as $contact)
+                        <option value="{{ $contact->email }}">{{ $contact->full_name }}</option>
+                    @endforeach
+                </datalist>
+            </div>
+
+            {{-- Attachments --}}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Attachments</label>
+                <input type="file" name="attachments[]" multiple class="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
+                <p class="text-xs text-slate-400 mt-1">Each file ≤ 20 MB. Uploads are saved into your Documents library and linked to this email + opportunity.</p>
             </div>
 
             {{-- Send Options --}}
@@ -142,16 +162,27 @@
                 </div>
             </div>
 
-            {{-- Follow-up --}}
+            {{-- Follow-up: now with template selection --}}
             <div x-data="{ followUp: false }" class="bg-slate-50 rounded-xl p-4">
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" name="schedule_follow_up" x-model="followUp" value="1" class="text-indigo-600">
                     <span class="text-sm font-medium text-slate-700">Schedule follow-up if no reply received</span>
                 </label>
-                <div x-show="followUp" x-cloak class="mt-3 flex items-center gap-2">
-                    <label class="text-sm text-slate-600">After</label>
-                    <input type="number" name="follow_up_days" value="5" min="1" max="30" class="w-16 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <label class="text-sm text-slate-600">days</label>
+                <div x-show="followUp" x-cloak class="mt-3 space-y-3">
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-slate-600">After</label>
+                        <input type="number" name="follow_up_days" value="5" min="1" max="60" class="w-16 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <label class="text-sm text-slate-600">days, send template:</label>
+                    </div>
+                    <select name="follow_up_template_id" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">— Use opportunity default / blank reminder —</option>
+                        @foreach($templates as $template)
+                            <option value="{{ $template->id }}" @if($template->type === 'follow_up') selected @endif>
+                                {{ $template->name }} ({{ ucwords(str_replace('_', ' ', $template->type)) }})
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-slate-400">The selected template will be sent automatically on the due date unless a reply has arrived in the meantime.</p>
                 </div>
             </div>
 
@@ -165,3 +196,80 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<script>
+let composeQuill = null;
+
+function composeForm(contactsList) {
+    return {
+        contacts: contactsList,
+        contactId: '{{ old('contact_id', request('contact_id', '')) }}',
+        templateId: '',
+        subject: @json(old('subject', '')),
+        toEmail: @json(old('to_email', '')),
+        toName: @json(old('to_name', '')),
+        cc: @json(old('cc', '')),
+        bcc: @json(old('bcc', '')),
+        sendOption: 'now',
+        init() {
+            // Bootstrap Quill on the placeholder div and seed it with any old() body
+            composeQuill = new Quill('#composeEditor', {
+                theme: 'snow',
+                placeholder: 'Write your email here...',
+                modules: {
+                    toolbar: [
+                        [{ header: [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ color: [] }, { background: [] }],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['blockquote', 'code-block', 'link'],
+                        [{ align: [] }],
+                        ['clean'],
+                    ],
+                },
+            });
+            const oldBody = document.getElementById('composeBody').value;
+            if (oldBody) {
+                composeQuill.clipboard.dangerouslyPasteHTML(oldBody);
+            }
+            // If contact was already selected via query string, populate To
+            if (this.contactId) {
+                this.onContactSelected();
+            }
+        },
+        syncBody() {
+            // Right before form submit, copy Quill's HTML into the hidden textarea
+            document.getElementById('composeBody').value = composeQuill.root.innerHTML;
+        },
+        onContactSelected() {
+            if (!this.contactId) return;
+            const c = this.contacts.find(c => c.id == this.contactId);
+            if (c) {
+                if (!this.toEmail) this.toEmail = c.email;
+                if (!this.toName)  this.toName  = c.label;
+                // If user has explicit values, keep them — only fill blanks
+                if (this.toEmail !== c.email && !this.toEmail.trim()) this.toEmail = c.email;
+            }
+        },
+        async loadTemplate() {
+            if (!this.templateId) return;
+            try {
+                const res = await fetch('{{ route('emails.get-template') }}?template_id=' + this.templateId, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.subject) this.subject = data.subject;
+                if (data.body) {
+                    composeQuill.clipboard.dangerouslyPasteHTML(data.body);
+                }
+            } catch (e) {
+                console.warn('template load failed', e);
+            }
+        },
+    };
+}
+</script>
+@endpush

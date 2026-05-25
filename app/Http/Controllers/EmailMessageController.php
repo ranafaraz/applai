@@ -3,42 +3,48 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreEmailMessageRequest;
-use App\Jobs\SendEmailJob;
 use App\Models\Contact;
 use App\Models\EmailAccount;
 use App\Models\EmailMessage;
 use App\Models\EmailTemplate;
 use App\Models\Opportunity;
+use App\Services\EmailSendingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Throwable;
 
 class EmailMessageController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = $this->tenantQuery(EmailMessage::class)
-            ->with(['emailAccount', 'contact', 'opportunity']);
+        $base = fn () => $this->tenantQuery(EmailMessage::class)
+            ->with(['emailAccount', 'contact', 'opportunity'])
+            ->where('direction', 'outbound');
 
-        // Tab: inbox or outbox
+        $sent      = $base()->where('status', 'sent')->orderByDesc('sent_at')->limit(100)->get();
+        $scheduled = $base()->where('status', 'scheduled')->orderByDesc('scheduled_at')->limit(100)->get();
+        $drafts    = $base()->where('status', 'draft')->orderByDesc('updated_at')->limit(100)->get();
+        $failed    = $base()->where('status', 'failed')->orderByDesc('updated_at')->limit(100)->get();
+
+        $outboxCount    = $sent->count();
+        $scheduledCount = $scheduled->count();
+        $draftsCount    = $drafts->count();
+        $failedCount    = $failed->count();
+
         $tab = $request->input('tab', 'outbox');
-        $query->where('direction', $tab === 'inbox' ? 'inbound' : 'outbound');
-
-        if ($status = $request->input('status')) {
-            $query->where('status', $status);
-        }
-        if ($accountId = $request->input('email_account_id')) {
-            $query->where('email_account_id', $accountId);
-        }
-
-        $emails = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
 
         $emailAccounts = $this->tenantQuery(EmailAccount::class)
             ->orderBy('name')
             ->get();
 
-        return view('emails.index', compact('emails', 'tab', 'emailAccounts'));
+        return view('emails.index', compact(
+            'sent', 'scheduled', 'drafts', 'failed',
+            'outboxCount', 'scheduledCount', 'draftsCount', 'failedCount',
+            'tab', 'emailAccounts'
+        ));
     }
 
     public function compose(): View
@@ -64,9 +70,18 @@ class EmailMessageController extends Controller
         return view('emails.compose', compact('emailAccounts', 'templates', 'contacts', 'opportunities'));
     }
 
-    public function store(StoreEmailMessageRequest $request): RedirectResponse
+    public function store(StoreEmailMessageRequest $request, EmailSendingService $emailService): RedirectResponse
     {
         $data = $request->validated();
+
+        // Compose form sends `send_option` (now|schedule|draft) and `scheduled_at`.
+        // Older callers may send `send_now` or `send_at` — accept either.
+        $sendOption  = $request->input('send_option', $request->boolean('send_now') ? 'now' : 'draft');
+        $scheduledAt = $request->input('scheduled_at', $request->input('send_at'));
+
+        // CC/BCC may arrive as comma-separated text. Normalise to array of {email,name}.
+        $ccList  = $this->parseAddresses($request->input('cc'));
+        $bccList = $this->parseAddresses($request->input('bcc'));
 
         $message = EmailMessage::create($this->tenantData([
             'email_account_id' => $data['email_account_id'],
@@ -77,38 +92,187 @@ class EmailMessageController extends Controller
             'to_name'          => $data['to_name'] ?? null,
             'subject'          => $data['subject'],
             'body'             => $data['body'],
-            'cc'               => $data['cc'] ?? null,
-            'bcc'              => $data['bcc'] ?? null,
+            'cc'               => $ccList ?: null,
+            'bcc'              => $bccList ?: null,
             'direction'        => 'outbound',
             'status'           => 'draft',
-            'scheduled_at'     => $data['send_at'] ?? null,
+            'scheduled_at'     => $scheduledAt ?: null,
         ]));
 
-        // Increment template usage counter if a template was used
+        // Bump template usage counter
         if (!empty($data['template_id'])) {
             EmailTemplate::where('id', $data['template_id'])->increment('times_used');
         }
 
-        if (!empty($data['send_at'])) {
-            // Schedule for later
-            $message->update(['status' => 'scheduled']);
+        // Save file attachments to the centralised documents disk and link them
+        // to this EmailMessage (and the opportunity if present).
+        $this->saveAttachments($request, $message);
 
+        // Optional follow-up: schedule one if asked
+        $this->scheduleFollowUp($request, $message);
+
+        if ($sendOption === 'schedule' && $scheduledAt) {
+            $message->update(['status' => 'scheduled']);
             return redirect()->route('emails.show', $message->id)
                 ->with('success', 'Email scheduled for ' . $message->scheduled_at->format('M j, Y g:i A') . '.');
         }
 
-        if ($request->boolean('send_now')) {
-            // Dispatch immediately
-            $message->update(['status' => 'queued']);
-            SendEmailJob::dispatch($message);
+        if ($sendOption === 'now') {
+            // Send inline — the queue worker has been unreliable; for typical
+            // compose volumes this finishes well within the request timeout.
+            try {
+                $ok = $emailService->sendEmail($message);
+            } catch (Throwable $e) {
+                $message->update(['status' => 'failed', 'failure_reason' => $e->getMessage()]);
+                return redirect()->route('emails.show', $message->id)
+                    ->with('error', 'Send failed: ' . $e->getMessage());
+            }
 
-            return redirect()->route('emails.index')
-                ->with('success', 'Email queued for sending.');
+            if ($ok) {
+                return redirect()->route('emails.show', $message->id)
+                    ->with('success', 'Email sent.');
+            }
+
+            return redirect()->route('emails.show', $message->id)
+                ->with('error', 'Send failed: ' . ($message->fresh()->failure_reason ?? 'unknown error'));
         }
 
-        // Save as draft
+        // Default: save as draft
         return redirect()->route('emails.show', $message->id)
             ->with('success', 'Draft saved.');
+    }
+
+    /**
+     * Persist uploaded attachments to the centralised documents disk and link
+     * them to the EmailMessage (creating Document rows so they show up in the
+     * Documents page too).
+     */
+    private function saveAttachments(Request $request, EmailMessage $message): void
+    {
+        $files = $request->file('attachments') ?? [];
+        if (! is_array($files)) {
+            $files = [$files];
+        }
+
+        $dir = storage_path('app/private/email-attachments');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        foreach ($files as $file) {
+            if (! $file || ! $file->isValid()) {
+                continue;
+            }
+            $original = $file->getClientOriginalName();
+            $mime     = $file->getClientMimeType();
+            $filename = time() . '_' . preg_replace('/[^A-Za-z0-9._-]/', '_', $original);
+            $file->move($dir, $filename);
+            $fullPath = $dir . '/' . $filename;
+            $size     = file_exists($fullPath) ? filesize($fullPath) : 0;
+            $rel      = 'email-attachments/' . $filename;
+
+            // Mirror into central Documents catalogue first so we can link the
+            // EmailAttachment to the Document row for cross-referencing.
+            $documentId = null;
+            try {
+                $document = \App\Models\Document::create($this->tenantData([
+                    'opportunity_id' => $message->opportunity_id,
+                    'contact_id'     => $message->contact_id,
+                    'name'           => $original,
+                    'file_path'      => $rel,
+                    'file_name'      => $original,
+                    'file_size'      => $size,
+                    'mime_type'      => $mime,
+                    'document_type'  => 'email_attachment',
+                ]));
+                $documentId = $document->id;
+            } catch (Throwable) {
+                // Documents table schema may differ — fail-soft, attachment still saves.
+            }
+
+            \App\Models\EmailAttachment::create([
+                'email_message_id' => $message->id,
+                'document_id'      => $documentId,
+                'file_name'        => $original,
+                'file_path'        => $rel,
+                'mime_type'        => $mime,
+                'file_size'        => $size,
+            ]);
+        }
+    }
+
+    /**
+     * If the user requested a follow-up on the compose form, create one.
+     * Pre-fills subject/body from the selected follow-up template so the
+     * scheduled-send job has something to render.
+     */
+    private function scheduleFollowUp(Request $request, EmailMessage $message): void
+    {
+        if (! $request->boolean('schedule_follow_up')) {
+            return;
+        }
+        // FollowUps require an opportunity in this schema; skip if no opportunity linked.
+        if (! $message->opportunity_id) {
+            return;
+        }
+
+        $days  = max(1, min(60, (int) $request->input('follow_up_days', 5)));
+        $tplId = $request->input('follow_up_template_id') ?: null;
+
+        $subject = 'Re: ' . $message->subject;
+        $body    = '';
+        if ($tplId) {
+            $tpl = EmailTemplate::find($tplId);
+            if ($tpl) {
+                $subject = $tpl->subject ?: $subject;
+                $body    = $tpl->body ?: '';
+            }
+        }
+
+        try {
+            \App\Models\FollowUp::create($this->tenantData([
+                'opportunity_id'    => $message->opportunity_id,
+                'contact_id'        => $message->contact_id,
+                'email_account_id'  => $message->email_account_id,
+                'email_template_id' => $tplId,
+                'email_message_id'  => $message->id,
+                'due_at'            => now()->addDays($days),
+                'status'            => 'pending',
+                'subject'           => $subject,
+                'body'              => $body,
+                'follow_up_number'  => 1,
+            ]));
+        } catch (Throwable) {
+            // Schema mismatch falls through silently — the send already succeeded.
+        }
+    }
+
+    /**
+     * Parse a comma/semicolon-separated address list into [{email,name}, ...].
+     *
+     * @return array<int, array{email:string, name:string}>
+     */
+    private function parseAddresses(mixed $raw): array
+    {
+        if (! $raw) {
+            return [];
+        }
+        if (is_array($raw)) {
+            return collect($raw)
+                ->map(fn ($v) => is_array($v) ? $v : ['email' => trim((string) $v), 'name' => ''])
+                ->filter(fn ($v) => filter_var($v['email'] ?? '', FILTER_VALIDATE_EMAIL))
+                ->values()
+                ->all();
+        }
+        $parts = preg_split('/[;,]+/', (string) $raw) ?: [];
+        $out   = [];
+        foreach ($parts as $p) {
+            $e = strtolower(trim($p));
+            if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) {
+                $out[] = ['email' => $e, 'name' => ''];
+            }
+        }
+        return $out;
     }
 
     public function show(Request $request, int $id): View

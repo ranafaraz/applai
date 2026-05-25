@@ -17,7 +17,7 @@ use Throwable;
  * Idempotent setup of a user's CRM account:
  *  - removes mistakenly-created dexdevs@gmail.com email account (wrong address)
  *  - ensures Personal Gmail + DEXDevs Gmail (dexdevs007@gmail.com) + three
- *    self-hosted domain mailboxes (info@dexdevs.com, info@awakeelinstitute.com,
+ *    self-hosted domain mailboxes (info@dexdevs.com, info@alwakeelinstitute.com,
  *    info@universalphysioclinic.com) exist
  *  - marks the user's preferred default account
  *  - seeds 12 production-quality email templates
@@ -70,7 +70,7 @@ class SeedUserAccountCommand extends Command
     {
         $this->line('— Cleanup ———————————————————————');
 
-        foreach (['dexdevs@gmail.com'] as $wrong) {
+        foreach (['dexdevs@gmail.com', 'info@awakeelinstitute.com'] as $wrong) {
             $row = EmailAccount::where('user_id', $user->id)->where('email', $wrong)->first();
             if ($row) {
                 $row->forceDelete();
@@ -122,7 +122,7 @@ class SeedUserAccountCommand extends Command
         foreach (
             [
                 ['domain' => 'dexdevs.com',               'env' => 'INFO_DEXDEVS_PASSWORD'],
-                ['domain' => 'awakeelinstitute.com',      'env' => 'INFO_AWAKEEL_PASSWORD'],
+                ['domain' => 'alwakeelinstitute.com',      'env' => 'INFO_AWAKEEL_PASSWORD'],
                 ['domain' => 'universalphysioclinic.com', 'env' => 'INFO_UPC_PASSWORD'],
             ] as $spec
         ) {
