@@ -8,10 +8,21 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class EmailAccount extends Model
 {
-    use HasFactory, SoftDeletes, Tenantable;
+    use HasFactory, SoftDeletes, Tenantable, LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'email', 'from_name', 'smtp_host', 'smtp_port', 'imap_host', 'imap_port', 'is_active', 'is_default'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn (string $event) => "Email account {$event}");
+    }
 
     protected $fillable = [
         'tenant_id',
