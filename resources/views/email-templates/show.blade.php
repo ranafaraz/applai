@@ -30,7 +30,7 @@
 
         <div>
             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Body</p>
-            <pre class="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 font-mono whitespace-pre-wrap overflow-x-auto">{{ $template->body }}</pre>
+            <div class="prose prose-sm max-w-none text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 overflow-x-auto">{!! $template->body !!}</div>
         </div>
 
         @if($template->variables && count($template->variables) > 0)

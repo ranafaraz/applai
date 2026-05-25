@@ -116,21 +116,26 @@
                 <textarea name="body" id="composeBody" class="hidden" required>{{ old('body') }}</textarea>
             </div>
 
-            {{-- CC / BCC (comma-separated; supports type-ahead from contacts) --}}
+            {{-- CC / BCC (multi-select chip pickers; suggests contacts + accepts free emails) --}}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">CC</label>
-                    <input type="text" name="cc" x-model="cc" list="contactEmails" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="cc1@example.com, cc2@example.com">
+                    @include('partials._email-chip-picker', [
+                        'name'     => 'cc',
+                        'contacts' => $contacts,
+                        'selected' => old('cc'),
+                    ])
+                    <p class="text-xs text-slate-400 mt-1">Pick a contact or type any email and press Enter.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">BCC</label>
-                    <input type="text" name="bcc" x-model="bcc" list="contactEmails" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="bcc1@example.com, bcc2@example.com">
+                    @include('partials._email-chip-picker', [
+                        'name'     => 'bcc',
+                        'contacts' => $contacts,
+                        'selected' => old('bcc'),
+                    ])
+                    <p class="text-xs text-slate-400 mt-1">Pick a contact or type any email and press Enter.</p>
                 </div>
-                <datalist id="contactEmails">
-                    @foreach($contacts as $contact)
-                        <option value="{{ $contact->email }}">{{ $contact->full_name }}</option>
-                    @endforeach
-                </datalist>
             </div>
 
             {{-- Attachments --}}
@@ -195,6 +200,7 @@
         </form>
     </div>
 </div>
+@include('partials._email-chip-picker-script')
 @endsection
 
 @push('scripts')
@@ -210,8 +216,6 @@ function composeForm(contactsList) {
         subject: @json(old('subject', '')),
         toEmail: @json(old('to_email', '')),
         toName: @json(old('to_name', '')),
-        cc: @json(old('cc', '')),
-        bcc: @json(old('bcc', '')),
         sendOption: 'now',
         init() {
             // Bootstrap Quill on the placeholder div and seed it with any old() body
