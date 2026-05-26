@@ -96,7 +96,7 @@ Route::middleware('auth')->group(function () {
     Route::get('emails/template', [EmailMessageController::class, 'getTemplate'])
         ->name('emails.get-template');
     Route::get('compose', [EmailMessageController::class, 'compose'])->name('compose');
-    Route::resource('emails', EmailMessageController::class)->except(['edit', 'update']);
+    Route::resource('emails', EmailMessageController::class);
 
     // ---------------------------------------------------------------------------
     // Inbox

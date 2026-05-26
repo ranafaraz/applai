@@ -56,7 +56,7 @@
                             <td class="px-5 py-3.5 text-slate-600">{{ $email->emailAccount?->name ?? '—' }}</td>
                             <td class="px-5 py-3.5"><span class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">Sent</span></td>
                             <td class="px-5 py-3.5 text-xs text-slate-500">{{ $email->sent_at?->format('M d, Y H:i') ?? '—' }}</td>
-                            <td class="px-5 py-3.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer">View</td>
+                            <td class="px-5 py-3.5 text-xs"><a href="{{ route('emails.show', $email) }}" class="text-indigo-600 hover:text-indigo-800 font-medium">View</a></td>
                         </tr>
                     @empty
                         <tr><td colspan="6" class="px-5 py-10 text-center text-slate-400 text-sm">No sent emails.</td></tr>
@@ -86,8 +86,13 @@
                             <td class="px-5 py-3.5"><span class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Scheduled</span></td>
                             <td class="px-5 py-3.5 text-xs text-slate-500">{{ $email->scheduled_at?->format('M d, Y H:i') ?? '—' }}</td>
                             <td class="px-5 py-3.5">
-                                <div class="flex gap-2">
-                                    <button class="text-xs text-red-600 hover:text-red-800 font-medium">Cancel</button>
+                                <div class="flex gap-3 text-xs">
+                                    <a href="{{ route('emails.show', $email) }}" class="text-indigo-600 hover:text-indigo-800 font-medium">View</a>
+                                    <a href="{{ route('emails.edit', $email) }}" class="text-slate-700 hover:text-slate-900 font-medium">Edit</a>
+                                    <form method="POST" action="{{ route('emails.destroy', $email) }}" onsubmit="return confirm('Cancel this scheduled email?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:text-red-800 font-medium">Cancel</button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -119,9 +124,13 @@
                             <td class="px-5 py-3.5"><span class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Draft</span></td>
                             <td class="px-5 py-3.5 text-xs text-slate-500">{{ $email->updated_at?->format('M d, Y') ?? '—' }}</td>
                             <td class="px-5 py-3.5">
-                                <div class="flex gap-2">
-                                    <span class="text-xs text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer">Edit</span>
-                                    <span class="text-xs text-red-600 hover:text-red-800 font-medium cursor-pointer">Delete</span>
+                                <div class="flex gap-3 text-xs">
+                                    <a href="{{ route('emails.edit', $email) }}" class="text-indigo-600 hover:text-indigo-800 font-medium">Edit</a>
+                                    <a href="{{ route('emails.show', $email) }}" class="text-slate-700 hover:text-slate-900 font-medium">View</a>
+                                    <form method="POST" action="{{ route('emails.destroy', $email) }}" onsubmit="return confirm('Delete this draft?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:text-red-800 font-medium">Delete</button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -156,7 +165,7 @@
                             <td class="px-5 py-3.5 text-xs text-red-600 max-w-xs truncate">{{ $email->error_message ?? 'Unknown error' }}</td>
                             <td class="px-5 py-3.5 text-xs text-slate-500">{{ $email->updated_at?->format('M d, Y H:i') ?? '—' }}</td>
                             <td class="px-5 py-3.5">
-                                <button class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Retry</button>
+                                <a href="{{ route('emails.show', $email) }}" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">View</a>
                             </td>
                         </tr>
                     @empty

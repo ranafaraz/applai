@@ -286,6 +286,97 @@ class EmailMessageController extends Controller
         return view('emails.show', compact('email'));
     }
 
+    public function edit(Request $request, int $id): View
+    {
+        $email = $this->tenantQuery(EmailMessage::class)
+            ->with(['emailAccount', 'contact', 'opportunity', 'attachments'])
+            ->findOrFail($id);
+
+        $this->authorize('update', $email);
+
+        if (! in_array($email->status, ['draft', 'scheduled'], true)) {
+            abort(403, 'Only drafts and scheduled emails can be edited.');
+        }
+
+        $emailAccounts = $this->tenantQuery(EmailAccount::class)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        $templates = $this->tenantQuery(EmailTemplate::class)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        $contacts = $this->tenantQuery(Contact::class)
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'last_name', 'email']);
+
+        $opportunities = $this->tenantQuery(Opportunity::class)
+            ->orderByDesc('updated_at')
+            ->get(['id', 'title']);
+
+        return view('emails.edit', compact('email', 'emailAccounts', 'templates', 'contacts', 'opportunities'));
+    }
+
+    public function update(StoreEmailMessageRequest $request, EmailSendingService $emailService, int $id): RedirectResponse
+    {
+        $email = $this->tenantQuery(EmailMessage::class)->findOrFail($id);
+        $this->authorize('update', $email);
+
+        if (! in_array($email->status, ['draft', 'scheduled'], true)) {
+            return redirect()->route('emails.show', $email->id)
+                ->with('error', 'Only drafts and scheduled emails can be edited.');
+        }
+
+        $data = $request->validated();
+
+        $sendOption  = $request->input('send_option', 'draft');
+        $scheduledAt = $request->input('scheduled_at', $request->input('send_at'));
+
+        $ccList  = $this->parseAddresses($request->input('cc'));
+        $bccList = $this->parseAddresses($request->input('bcc'));
+
+        $email->update([
+            'email_account_id' => $data['email_account_id'],
+            'contact_id'       => $data['contact_id'] ?? null,
+            'opportunity_id'   => $data['opportunity_id'] ?? null,
+            'template_id'      => $data['template_id'] ?? null,
+            'to_email'         => $data['to_email'],
+            'to_name'          => $data['to_name'] ?? null,
+            'subject'          => $data['subject'],
+            'body'             => $data['body'],
+            'cc'               => $ccList ?: null,
+            'bcc'              => $bccList ?: null,
+            'scheduled_at'     => $scheduledAt ?: null,
+        ]);
+
+        $this->saveAttachments($request, $email);
+
+        if ($sendOption === 'schedule' && $scheduledAt) {
+            $email->update(['status' => 'scheduled']);
+            return redirect()->route('emails.show', $email->id)
+                ->with('success', 'Schedule updated.');
+        }
+
+        if ($sendOption === 'now') {
+            try {
+                $ok = $emailService->sendEmail($email);
+            } catch (Throwable $e) {
+                $email->update(['status' => 'failed', 'failure_reason' => $e->getMessage()]);
+                return redirect()->route('emails.show', $email->id)
+                    ->with('error', 'Send failed: ' . $e->getMessage());
+            }
+            return redirect()->route('emails.show', $email->id)
+                ->with($ok ? 'success' : 'error', $ok ? 'Email sent.' : 'Send failed: ' . ($email->fresh()->failure_reason ?? 'unknown error'));
+        }
+
+        // sendOption=draft (or anything else): keep as draft
+        $email->update(['status' => 'draft']);
+        return redirect()->route('emails.show', $email->id)
+            ->with('success', 'Draft updated.');
+    }
+
     public function destroy(Request $request, int $id): RedirectResponse
     {
         $email = $this->tenantQuery(EmailMessage::class)->findOrFail($id);

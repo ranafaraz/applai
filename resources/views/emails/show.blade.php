@@ -32,7 +32,15 @@
             </div>
         @endif
         <div class="pt-4 border-t border-slate-100">
-            <div class="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-line font-mono leading-relaxed">{{ $email->body }}</div>
+            @php
+                // Detect whether the body is HTML or plain text. Plain text gets
+                // newline-converted before rendering so it doesn't collapse.
+                $body = (string) $email->body;
+                $looksHtml = preg_match('/<\/?[a-z][\s\S]*>/i', $body) === 1;
+                $rendered  = $looksHtml ? $body : nl2br(e($body), false);
+            @endphp
+            <div class="prose prose-sm max-w-none bg-slate-50 rounded-lg p-4 text-sm text-slate-800 leading-relaxed">{!! $rendered !!}</div>
+            <p class="text-xs text-slate-400 mt-2">Recipients see the rendered HTML, not the raw markup.</p>
         </div>
         @if($email->attachments->isNotEmpty())
             <div class="pt-4 border-t border-slate-100">
@@ -46,6 +54,9 @@
         @endif
         <div class="flex gap-3 pt-4 border-t border-slate-100">
             @if(in_array($email->status, ['draft','scheduled']))
+                <a href="{{ route('emails.edit', $email) }}" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+                    {{ $email->status === 'draft' ? 'Edit Draft' : 'Edit Scheduled' }}
+                </a>
                 <form method="POST" action="{{ route('emails.destroy', $email) }}" onsubmit="return confirm('Cancel/delete this email?')">
                     @csrf @method('DELETE')
                     <button type="submit" class="bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium px-4 py-2 rounded-lg">{{ $email->status === 'draft' ? 'Delete Draft' : 'Cancel Scheduled' }}</button>
