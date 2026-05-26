@@ -145,7 +145,14 @@
             <p class="text-xs font-medium text-orange-600 uppercase tracking-wide">Stale Opportunities</p>
             <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
-        <p class="text-3xl font-bold text-orange-700">{{ is_array($stats['stale_opportunities'] ?? null) ? count($stats['stale_opportunities']) : ($stats['stale_opportunities'] ?? 0) }}</p>
+        @php
+            // $stats['stale_opportunities'] may be an array, a Collection, or an int.
+            // count() handles all three (Collection implements Countable); when the
+            // service hasn't populated it, default to 0.
+            $stale = $stats['stale_opportunities'] ?? null;
+            $staleCount = is_int($stale) ? $stale : (is_countable($stale) ? count($stale) : 0);
+        @endphp
+        <p class="text-3xl font-bold text-orange-700">{{ $staleCount }}</p>
         <p class="text-xs text-orange-500 mt-1">No activity 14+ days</p>
     </div>
 </div>
