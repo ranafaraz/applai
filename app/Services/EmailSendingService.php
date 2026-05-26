@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\EmailAccount;
 use App\Models\EmailMessage;
 use App\Models\SuppressionList;
-use App\Models\TimelineEvent;
 use App\Events\EmailSent;
 use App\Events\EmailFailed;
 use Carbon\Carbon;
@@ -24,6 +23,30 @@ class EmailSendingService
      */
     public function sendEmail(EmailMessage $emailMessage): bool
     {
+        $emailMessage = EmailMessage::query()->findOrFail($emailMessage->id);
+
+        if ($emailMessage->status === 'sent') {
+            Log::info('EmailSendingService: email already sent, skipping duplicate send', [
+                'email_message_id' => $emailMessage->id,
+            ]);
+
+            return true;
+        }
+
+        $claimed = EmailMessage::query()
+            ->whereKey($emailMessage->id)
+            ->whereNotIn('status', ['sent', 'sending'])
+            ->update(['status' => 'sending']);
+
+        if ($claimed === 0) {
+            Log::warning('EmailSendingService: email is already being sent, skipping duplicate send', [
+                'email_message_id' => $emailMessage->id,
+            ]);
+
+            return false;
+        }
+
+        $emailMessage->refresh();
         $emailMessage->load('emailAccount', 'contact', 'opportunity');
         $account = $emailMessage->emailAccount;
 
@@ -42,9 +65,6 @@ class EmailSendingService
             event(new EmailFailed($emailMessage, $reason));
             return false;
         }
-
-        // 3. Mark as sending
-        $emailMessage->update(['status' => 'sending']);
 
         try {
             // 4. Build Symfony Mailer transport from account credentials
@@ -87,10 +107,7 @@ class EmailSendingService
                 'message_id' => $mime->generateMessageId(),
             ]);
 
-            // 9. Create timeline event
-            $this->createTimeline($emailMessage, 'email_sent', "Email sent to {$emailMessage->to_email}");
-
-            // 10. Fire event
+            // 9. Fire event. Timeline + CRM notifications are handled by listeners.
             event(new EmailSent($emailMessage));
 
             return true;
@@ -257,37 +274,5 @@ class EmailSendingService
             'failure_reason' => $reason,
         ]);
 
-        $this->createTimeline($emailMessage, 'email_failed', "Email failed: {$reason}");
-    }
-
-    /**
-     * Create a TimelineEvent attached to the EmailMessage (and its opportunity if present).
-     */
-    private function createTimeline(EmailMessage $emailMessage, string $eventType, string $description): void
-    {
-        $base = [
-            'user_id'          => $emailMessage->user_id,
-            'event_type'       => $eventType,
-            'description'      => $description,
-            'happened_at'      => now(),
-            'metadata'         => ['email_message_id' => $emailMessage->id],
-        ];
-
-        // Attach to the EmailMessage itself
-        TimelineEvent::create(array_merge($base, [
-            'timelineable_id'   => $emailMessage->id,
-            'timelineable_type' => EmailMessage::class,
-        ]));
-
-        // Also attach to the related Opportunity if present
-        if ($emailMessage->opportunity_id) {
-            TimelineEvent::create(array_merge($base, [
-                'timelineable_id'   => $emailMessage->opportunity_id,
-                'timelineable_type' => \App\Models\Opportunity::class,
-                'metadata'          => array_merge($base['metadata'], [
-                    'opportunity_id' => $emailMessage->opportunity_id,
-                ]),
-            ]));
-        }
     }
 }

@@ -9,6 +9,11 @@
     $tc = $typeColors[$opportunity->type] ?? 'slate';
     $sc = $statusColors[$opportunity->status] ?? 'slate';
     $pc = $priorityColors[$opportunity->priority] ?? 'slate';
+    $scheduledFollowUpEmails = $opportunity->emailMessages
+        ->where('is_follow_up', true)
+        ->whereIn('status', ['scheduled', 'queued']);
+    $sentEmailCount = $opportunity->emailMessages->where('status', 'sent')->count();
+    $pendingFollowUpCount = $opportunity->followUps->where('status', 'pending')->count() + $scheduledFollowUpEmails->count();
 @endphp
 <div class="max-w-5xl" x-data="{ tab: 'timeline' }">
     {{-- Header --}}
@@ -50,8 +55,8 @@
         @endif
         <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-4 gap-4 text-center text-sm">
             <div><p class="font-semibold text-slate-800">{{ $opportunity->contacts->count() }}</p><p class="text-slate-500 text-xs">Contacts</p></div>
-            <div><p class="font-semibold text-slate-800">{{ $opportunity->emailMessages->count() }}</p><p class="text-slate-500 text-xs">Emails Sent</p></div>
-            <div><p class="font-semibold text-slate-800">{{ $opportunity->followUps->where('status','pending')->count() }}</p><p class="text-slate-500 text-xs">Pending Follow-ups</p></div>
+            <div><p class="font-semibold text-slate-800">{{ $sentEmailCount }}</p><p class="text-slate-500 text-xs">Emails Sent</p></div>
+            <div><p class="font-semibold text-slate-800">{{ $pendingFollowUpCount }}</p><p class="text-slate-500 text-xs">Pending Follow-ups</p></div>
             <div><p class="font-semibold text-slate-800">{{ $opportunity->documents->count() }}</p><p class="text-slate-500 text-xs">Documents</p></div>
         </div>
     </div>
@@ -133,6 +138,15 @@
                             <p class="text-xs text-slate-500">To: {{ $msg->to_email }} &bull; {{ $msg->created_at->format('M j, Y') }}</p>
                         </div>
                         <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $msg->status === 'sent' ? 'bg-green-100 text-green-700' : ($msg->status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600') }}">{{ ucfirst($msg->status) }}</span>
+                    </a>
+                    @endforeach
+                    @foreach($opportunity->followUps->sortByDesc('due_at') as $fu)
+                    <a href="{{ route('follow-ups.show', $fu) }}" class="flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                        <div>
+                            <p class="text-sm font-medium text-slate-800">{{ $fu->subject ?: 'Follow-up #' . $fu->follow_up_number }}</p>
+                            <p class="text-xs text-slate-500">Due: {{ $fu->due_at->format('M j, Y g:i A') }}</p>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $fu->status === 'sent' ? 'bg-green-100 text-green-700' : ($fu->status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700') }}">{{ ucfirst($fu->status) }}</span>
                     </a>
                     @endforeach
                 </div>

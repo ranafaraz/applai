@@ -23,12 +23,42 @@
     </div>
 
     <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        @if($followUps->isEmpty())
+        @if($followUps->isEmpty() && $scheduledEmailFollowUps->isEmpty())
             <div class="text-center py-16">
                 <p class="text-slate-500 font-medium">No follow-ups scheduled.</p>
                 <p class="text-sm text-slate-400 mt-1">Follow-ups are created automatically when you send emails with the follow-up option enabled.</p>
             </div>
         @else
+            @if($scheduledEmailFollowUps->isNotEmpty())
+                <div class="px-4 py-4 border-b border-slate-200">
+                    <h3 class="text-sm font-semibold text-slate-700 mb-3">Scheduled follow-up emails</h3>
+                    <div class="space-y-2">
+                        @foreach($scheduledEmailFollowUps as $email)
+                            @php
+                                $statusColors = ['scheduled'=>'yellow','queued'=>'blue','sent'=>'green','failed'=>'red','cancelled'=>'gray'];
+                                $sc = $statusColors[$email->status] ?? 'gray';
+                            @endphp
+                            <a href="{{ route('emails.show', $email) }}" class="flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-800">{{ $email->subject }}</p>
+                                    <p class="text-xs text-slate-500">
+                                        To: {{ $email->to_email }}
+                                        @if($email->opportunity)
+                                            &bull; {{ Str::limit($email->opportunity->title, 44) }}
+                                        @endif
+                                        @if($email->scheduled_at)
+                                            &bull; {{ $email->scheduled_at->format('M j, Y g:i A') }}
+                                        @endif
+                                    </p>
+                                </div>
+                                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-{{ $sc }}-100 text-{{ $sc }}-700">{{ ucfirst($email->status) }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @if($followUps->isNotEmpty())
             <table class="w-full text-sm">
                 <thead class="bg-slate-50 border-b border-slate-200">
                     <tr>
@@ -92,6 +122,7 @@
             </table>
             @if($followUps->hasPages())
                 <div class="px-4 py-3 border-t border-slate-200">{{ $followUps->withQueryString()->links() }}</div>
+            @endif
             @endif
         @endif
     </div>

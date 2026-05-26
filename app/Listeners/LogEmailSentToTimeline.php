@@ -36,15 +36,14 @@ class LogEmailSentToTimeline implements ShouldQueue
             ],
         ];
 
-        // Attach to the EmailMessage itself
-        TimelineEvent::create(array_merge($base, [
+        $this->recordTimelineEvent(array_merge($base, [
             'timelineable_id'   => $emailMessage->id,
             'timelineable_type' => EmailMessage::class,
         ]));
 
         // Also attach to the Opportunity if present
         if ($emailMessage->opportunity_id) {
-            TimelineEvent::create(array_merge($base, [
+            $this->recordTimelineEvent(array_merge($base, [
                 'timelineable_id'   => $emailMessage->opportunity_id,
                 'timelineable_type' => Opportunity::class,
                 'metadata'          => array_merge($base['metadata'], [
@@ -60,6 +59,22 @@ class LogEmailSentToTimeline implements ShouldQueue
         $user = User::find($emailMessage->user_id);
         if ($user) {
             DispatchCrmNotificationJob::dispatch($user, new EmailSentNotification($emailMessage));
+        }
+    }
+
+    private function recordTimelineEvent(array $payload): void
+    {
+        $emailMessageId = $payload['metadata']['email_message_id'] ?? null;
+
+        $exists = TimelineEvent::query()
+            ->where('timelineable_id', $payload['timelineable_id'])
+            ->where('timelineable_type', $payload['timelineable_type'])
+            ->where('event_type', $payload['event_type'])
+            ->when($emailMessageId, fn ($query) => $query->where('metadata->email_message_id', $emailMessageId))
+            ->exists();
+
+        if (! $exists) {
+            TimelineEvent::create($payload);
         }
     }
 }

@@ -40,7 +40,14 @@ class SendScheduledEmailsCommand extends Command
 
         foreach ($due as $emailMessage) {
             // Mark as queued to prevent duplicate dispatches on the next run
-            $emailMessage->update(['status' => 'queued']);
+            $updated = EmailMessage::query()
+                ->whereKey($emailMessage->id)
+                ->where('status', 'scheduled')
+                ->update(['status' => 'queued']);
+
+            if ($updated === 0) {
+                continue;
+            }
 
             SendEmailJob::dispatch($emailMessage);
 
