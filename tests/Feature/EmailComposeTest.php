@@ -25,6 +25,7 @@ class EmailComposeTest extends TestCase
             ->assertSee('id="composeBody" class="hidden"', false)
             ->assertSee('showPlainBodyEditor', false)
             ->assertSee('quillBootAttempts', false)
+            ->assertSee('x-data="composeForm()"', false)
             ->assertSee('id="compose-subject"', false)
             ->assertDontSee('id="subject"', false)
             ->assertDontSee('id="composeBody" class="hidden" required', false);

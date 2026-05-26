@@ -28,7 +28,7 @@
     $bccSelected = collect($email->bcc ?? [])->map(fn ($v) => is_array($v) ? ($v['email'] ?? '') : (string) $v)->filter()->values()->all();
 @endphp
 
-<div class="max-w-3xl" x-data="composeForm({{ $contactRecords->toJson() }}, @json($signaturePayload), @json((string) $currentSignatureId))">
+<div class="max-w-3xl" x-data="composeForm()">
     <div class="mb-4"><a href="{{ route('emails.show', $email) }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to email</a></div>
 
     <div class="bg-white border border-slate-200 rounded-xl p-6">
@@ -218,14 +218,17 @@
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <script>
 let composeQuill = null;
+const composeContacts = @json($contactRecords);
+const composeSignatures = @json($signaturePayload);
+const composeInitialSignatureId = @json((string) $currentSignatureId);
 
-function composeForm(contactsList, signatureList, initialSignatureId) {
+function composeForm() {
     return {
-        contacts: contactsList,
-        signatures: signatureList,
+        contacts: composeContacts,
+        signatures: composeSignatures,
         contactId: '{{ old('contact_id', $email->contact_id ?? '') }}',
         templateId: '',
-        signatureId: initialSignatureId || '',
+        signatureId: composeInitialSignatureId || '',
         subject: @json(old('subject', $email->subject)),
         toEmail: @json(old('to_email', $email->to_email)),
         toName: @json(old('to_name', $email->to_name ?? '')),

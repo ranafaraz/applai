@@ -26,7 +26,7 @@
     $editorBody = \App\Models\EmailSignature::stripSignatureHtml(old('body', ''));
 @endphp
 
-<div class="max-w-3xl" x-data="composeForm({{ $contactRecords->toJson() }}, @json($signaturePayload), @json((string) $selectedSignatureId))">
+<div class="max-w-3xl" x-data="composeForm()">
     <div class="bg-white border border-slate-200 rounded-xl p-6">
         <form method="POST" action="{{ route('emails.store') }}" enctype="multipart/form-data" class="space-y-4" @submit="syncBody">
             @csrf
@@ -232,14 +232,17 @@
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <script>
 let composeQuill = null;
+const composeContacts = @json($contactRecords);
+const composeSignatures = @json($signaturePayload);
+const composeInitialSignatureId = @json((string) $selectedSignatureId);
 
-function composeForm(contactsList, signatureList, initialSignatureId) {
+function composeForm() {
     return {
-        contacts: contactsList,
-        signatures: signatureList,
+        contacts: composeContacts,
+        signatures: composeSignatures,
         contactId: '{{ old('contact_id', request('contact_id', '')) }}',
         templateId: '',
-        signatureId: initialSignatureId || '',
+        signatureId: composeInitialSignatureId || '',
         subject: @json(old('subject', '')),
         toEmail: @json(old('to_email', '')),
         toName: @json(old('to_name', '')),
