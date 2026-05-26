@@ -138,7 +138,7 @@
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Body <span class="text-red-500">*</span></label>
                 <div id="composeEditor"></div>
-                <textarea name="body" id="composeBody" class="hidden" required>{{ $editorBody }}</textarea>
+                <textarea name="body" id="composeBody" class="hidden">{{ $editorBody }}</textarea>
             </div>
 
             {{-- CC / BCC chip pickers --}}
@@ -231,10 +231,26 @@ function composeForm(contactsList, signatureList, initialSignatureId) {
         toName: @json(old('to_name', $email->to_name ?? '')),
         sendOption: '{{ $email->status === 'scheduled' ? 'schedule' : 'draft' }}',
         init() {
-            // Poll until Quill is parsed (CDN script may not be ready when
-            // Alpine init runs). Fall back to a plain textarea on hard failure.
+            const showPlainBodyEditor = () => {
+                const placeholder = document.getElementById('composeEditor');
+                const body = document.getElementById('composeBody');
+                if (placeholder) placeholder.style.display = 'none';
+                if (body) {
+                    body.required = true;
+                    body.classList.remove('hidden');
+                    body.classList.add('w-full', 'px-3', 'py-2', 'border', 'border-slate-300', 'rounded-lg', 'text-sm', 'min-h-[280px]');
+                }
+            };
+            // Poll until Quill is parsed. If the CDN editor is unavailable,
+            // expose the textarea so the body field remains usable.
+            let quillBootAttempts = 0;
             const bootQuill = () => {
                 if (typeof window.Quill === 'undefined') {
+                    quillBootAttempts += 1;
+                    if (quillBootAttempts >= 80) {
+                        showPlainBodyEditor();
+                        return;
+                    }
                     setTimeout(bootQuill, 50);
                     return;
                 }
@@ -258,13 +274,7 @@ function composeForm(contactsList, signatureList, initialSignatureId) {
                     if (existing) composeQuill.clipboard.dangerouslyPasteHTML(existing);
                 } catch (e) {
                     console.error('Quill init failed:', e);
-                    const placeholder = document.getElementById('composeEditor');
-                    const body = document.getElementById('composeBody');
-                    if (placeholder) placeholder.style.display = 'none';
-                    if (body) {
-                        body.classList.remove('hidden');
-                        body.classList.add('w-full', 'px-3', 'py-2', 'border', 'border-slate-300', 'rounded-lg', 'text-sm', 'min-h-[280px]');
-                    }
+                    showPlainBodyEditor();
                 }
             };
             bootQuill();
@@ -296,7 +306,12 @@ function composeForm(contactsList, signatureList, initialSignatureId) {
                 const data = await res.json();
                 if (data.subject) this.subject = data.subject;
                 if (data.body) {
-                    composeQuill.clipboard.dangerouslyPasteHTML(data.body);
+                    const bodyEl = document.getElementById('composeBody');
+                    if (composeQuill && composeQuill.clipboard) {
+                        composeQuill.clipboard.dangerouslyPasteHTML(data.body);
+                    } else if (bodyEl) {
+                        bodyEl.value = data.body;
+                    }
                 }
             } catch (e) {
                 console.warn('template load failed', e);
