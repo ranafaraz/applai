@@ -8,6 +8,7 @@ use App\Models\EmailMessage;
 use App\Models\Opportunity;
 use App\Models\OpportunityImport;
 use App\Models\OpportunityImportRow;
+use App\Support\ImportAttachmentFetcher;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use League\Csv\Reader;
@@ -80,6 +81,18 @@ class OpportunityImportService
         'followup email'   => 'followup_email',
         'follow_up_email'  => 'followup_email',
         'follow up email'  => 'followup_email',
+
+        // Attachments: ; or , separated list of public http(s) URLs to fetch
+        // and attach to the draft / follow-up emails created for each contact.
+        'draft_attachments'    => 'draft_attachments',
+        'draft attachments'    => 'draft_attachments',
+        'initial_attachments'  => 'draft_attachments',
+        'initial attachments'  => 'draft_attachments',
+
+        'followup_attachments' => 'followup_attachments',
+        'followup attachments' => 'followup_attachments',
+        'follow_up_attachments' => 'followup_attachments',
+        'follow up attachments' => 'followup_attachments',
     ];
 
     private const VALID_TYPES    = ['job', 'scholarship', 'research', 'grant', 'networking'];
@@ -380,11 +393,15 @@ class OpportunityImportService
 
         if (! $account) return;
 
+        // Pre-download attachments once and reuse for every contact in the row.
+        $draftFiles    = ImportAttachmentFetcher::fetchAll($data['draft_attachments']    ?? '');
+        $followupFiles = ImportAttachmentFetcher::fetchAll($data['followup_attachments'] ?? '');
+
         foreach ($contacts as $contact) {
             $toName = trim(($contact->first_name ?? '') . ' ' . ($contact->last_name ?? '')) ?: $contact->email;
 
             if ($draftBody !== '') {
-                EmailMessage::create([
+                $msg = EmailMessage::create([
                     'tenant_id'        => $import->tenant_id,
                     'user_id'          => $import->user_id,
                     'email_account_id' => $account->id,
@@ -397,10 +414,11 @@ class OpportunityImportService
                     'direction'        => 'outbound',
                     'status'           => 'draft',
                 ]);
+                ImportAttachmentFetcher::attachToMessage($msg, $draftFiles, $import->user_id, $import->tenant_id);
             }
 
             if ($followupBody !== '') {
-                EmailMessage::create([
+                $msg = EmailMessage::create([
                     'tenant_id'        => $import->tenant_id,
                     'user_id'          => $import->user_id,
                     'email_account_id' => $account->id,
@@ -416,6 +434,7 @@ class OpportunityImportService
                     'is_follow_up'     => true,
                     'follow_up_number' => 1,
                 ]);
+                ImportAttachmentFetcher::attachToMessage($msg, $followupFiles, $import->user_id, $import->tenant_id);
             }
         }
     }

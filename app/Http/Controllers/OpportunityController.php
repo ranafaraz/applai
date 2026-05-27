@@ -152,6 +152,40 @@ class OpportunityController extends Controller
             ->with('success', 'Opportunity deleted.');
     }
 
+    /**
+     * Soft-delete many opportunities at once. Only opportunities visible to the
+     * current user are touched (tenantQuery + authorize each one), so submitting
+     * an arbitrary id list can never delete someone else's records.
+     */
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'integer',
+        ]);
+
+        $opportunities = $this->tenantQuery(Opportunity::class)
+            ->whereIn('id', $data['ids'])
+            ->get();
+
+        $deleted = 0;
+        foreach ($opportunities as $opportunity) {
+            if ($request->user()->can('delete', $opportunity)) {
+                $opportunity->delete();
+                $deleted++;
+            }
+        }
+
+        $requested = count($data['ids']);
+        $skipped   = $requested - $deleted;
+        $msg = "{$deleted} opportunit" . ($deleted === 1 ? 'y' : 'ies') . ' deleted.';
+        if ($skipped > 0) {
+            $msg .= " {$skipped} skipped (not found or no permission).";
+        }
+
+        return redirect()->route('opportunities.index')->with('success', $msg);
+    }
+
     public function updateStatus(Request $request, int $id): RedirectResponse
     {
         $opportunity = $this->tenantQuery(Opportunity::class)->findOrFail($id);

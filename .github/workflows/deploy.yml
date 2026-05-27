@@ -237,6 +237,39 @@ jobs:
               printf '%s\n' 'echo "  draft+scheduled msgs from opp import: ".$msgs2->count()."\n";'
               printf '%s\n' 'foreach ($msgs2 as $m) echo "    msg #".$m->id." status=".$m->status." subject=".$m->subject." scheduled_at=".($m->scheduled_at??"-")."\n";'
 
+              # Test 3: duplicate-prevention validation
+              printf '%s\n' 'echo "\n--- duplicate prevention ---\n";'
+              printf '%s\n' '$dupReq = new \App\Http\Requests\StoreOpportunityRequest();'
+              printf '%s\n' '$existingTitle = \App\Models\Opportunity::where("user_id",$user->id)->value("title");'
+              printf '%s\n' 'if ($existingTitle) {'
+              printf '%s\n' '    $rules = $dupReq->setUserResolver(fn()=>$user)->rules();'
+              printf '%s\n' '    $v = \Illuminate\Support\Facades\Validator::make(["title"=>$existingTitle], $rules);'
+              printf '%s\n' '    echo "  duplicate opp title (\""+(strlen($existingTitle))+" chars\") fails validation: ".($v->fails() ? "YES" : "NO")."\n";'
+              printf '%s\n' '} else { echo "  no existing opportunity to test against\n"; }'
+
+              printf '%s\n' '$dupReqC = new \App\Http\Requests\StoreContactRequest();'
+              printf '%s\n' '$existingEmail = \App\Models\Contact::where("user_id",$user->id)->value("email");'
+              printf '%s\n' 'if ($existingEmail) {'
+              printf '%s\n' '    $rulesC = $dupReqC->setUserResolver(fn()=>$user)->rules();'
+              printf '%s\n' '    $vc = \Illuminate\Support\Facades\Validator::make(["first_name"=>"Dup","email"=>$existingEmail], $rulesC);'
+              printf '%s\n' '    echo "  duplicate contact email fails validation: ".($vc->fails() ? "YES" : "NO")."\n";'
+              printf '%s\n' '}'
+
+              # Test 4: bulk delete returns success and removes records
+              printf '%s\n' 'echo "\n--- bulk delete ---\n";'
+              printf '%s\n' '$bulkA = \App\Models\Opportunity::create(["tenant_id"=>$tenantId,"user_id"=>$user->id,"title"=>"BULK A ".date("YmdHis"),"type"=>"job","status"=>"active","priority"=>"low"]);'
+              printf '%s\n' '$bulkB = \App\Models\Opportunity::create(["tenant_id"=>$tenantId,"user_id"=>$user->id,"title"=>"BULK B ".date("YmdHis"),"type"=>"job","status"=>"active","priority"=>"low"]);'
+              printf '%s\n' '$ids = [$bulkA->id, $bulkB->id];'
+              printf '%s\n' 'auth()->login($user);'
+              printf '%s\n' '$req = \Illuminate\Http\Request::create(route("opportunities.bulk-destroy"), "DELETE", ["ids"=>$ids]);'
+              printf '%s\n' '$req->setUserResolver(fn()=>$user);'
+              printf '%s\n' '$ctrl = app(\App\Http\Controllers\OpportunityController::class);'
+              printf '%s\n' 'try { $resp = $ctrl->bulkDestroy($req); echo "  bulk-destroy returned: ".$resp->getStatusCode()."\n"; }'
+              printf '%s\n' 'catch (\Throwable $e) { echo "  bulk-destroy EX: ".$e->getMessage()."\n"; }'
+              printf '%s\n' 'echo "  bulk A still present: ".(\App\Models\Opportunity::where("id",$bulkA->id)->exists() ? "YES" : "NO")."\n";'
+              printf '%s\n' 'echo "  bulk B still present: ".(\App\Models\Opportunity::where("id",$bulkB->id)->exists() ? "YES" : "NO")."\n";'
+              printf '%s\n' '\App\Models\Opportunity::withTrashed()->whereIn("id",$ids)->forceDelete();'
+
               # Cleanup the e2e fixtures (messages first to satisfy FK constraints)
               printf '%s\n' '\App\Models\EmailMessage::whereIn("contact_id", array_filter([$contact?->id, $contact2?->id]))->delete();'
               printf '%s\n' 'if ($opp) $opp->forceDelete();'

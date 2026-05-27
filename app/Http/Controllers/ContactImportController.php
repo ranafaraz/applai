@@ -8,6 +8,7 @@ use App\Models\ContactImportRow;
 use App\Models\EmailAccount;
 use App\Models\EmailMessage;
 use App\Models\Opportunity;
+use App\Support\ImportAttachmentFetcher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -54,6 +55,18 @@ class ContactImportController extends Controller
         'followup email'       => 'followup_email',
         'follow_up_email'      => 'followup_email',
         'follow up email'      => 'followup_email',
+
+        // Attachments: ; or , separated list of public http(s) URLs to fetch
+        // and attach to the draft / follow-up emails for this contact.
+        'draft_attachments'    => 'draft_attachments',
+        'draft attachments'    => 'draft_attachments',
+        'initial_attachments'  => 'draft_attachments',
+        'initial attachments'  => 'draft_attachments',
+
+        'followup_attachments' => 'followup_attachments',
+        'followup attachments' => 'followup_attachments',
+        'follow_up_attachments' => 'followup_attachments',
+        'follow up attachments' => 'followup_attachments',
     ];
 
     public function index(Request $request): View
@@ -82,19 +95,25 @@ class ContactImportController extends Controller
         ];
 
         $rows = [
-            ['first_name','last_name','email','company','phone','job_title','industry','linkedin_url','website','city','country','source','notes','opportunity_titles','draft_email','followup_email'],
+            ['first_name','last_name','email','company','phone','job_title','industry','linkedin_url','website','city','country','source','notes','opportunity_titles','draft_email','followup_email','draft_attachments','followup_attachments'],
             [
                 'Jane','Doe','jane@acme.com','Acme Corp','+1 555-1234','VP Engineering','SaaS','https://linkedin.com/in/janedoe','https://acme.com','San Francisco','USA','LinkedIn','Met at conference 2025','Senior Backend Engineer @ Acme;Sr Platform Role @ Acme',
                 "Hi Jane,\n\nGreat meeting you at the conference. I'd love to follow up on the platform role we discussed.\n\nBest,\nRana",
                 "Hi Jane,\n\nFollowing up on my last note — let me know if there's a good time to catch up.\n\nBest,\nRana",
+                'https://example.com/files/rana-cv.pdf',
+                '',
             ],
             [
                 'Bob','Recruiter','recruiter@acme.com','Acme Corp','+1 555-9999','Technical Recruiter','SaaS','https://linkedin.com/in/bobrecruiter','https://acme.com','Austin','USA','Referral','Owns engineering hiring pipeline','Senior Backend Engineer @ Acme',
-                "Hi Bob,\n\nJane suggested I reach out to you about the senior backend role. Attached my CV.\n\nBest,\nRana",
+                "Hi Bob,\n\nJane suggested I reach out to you about the senior backend role. Attached my CV and portfolio.\n\nBest,\nRana",
+                '',
+                'https://example.com/files/rana-cv.pdf;https://example.com/files/portfolio.pdf',
                 '',
             ],
             [
                 'Sarah','Lin','sarah@betalabs.co','Beta Labs','','CTO','AI','https://linkedin.com/in/sarahlin','https://betalabs.co','Berlin','Germany','Wellfound','Reached out re founding eng role','Founding Engineer @ Beta Labs',
+                '',
+                '',
                 '',
                 '',
             ],
@@ -370,8 +389,13 @@ class ContactImportController extends Controller
         $toName    = trim(($contact->first_name ?? '') . ' ' . ($contact->last_name ?? '')) ?: $contact->email;
         $subjectBase = $opportunity?->title ?: ('Outreach to ' . $toName);
 
+        // Pre-fetch attachments listed in the row's draft_attachments /
+        // followup_attachments columns so each generated message gets them.
+        $draftFiles    = ImportAttachmentFetcher::fetchAll($data['draft_attachments']    ?? '');
+        $followupFiles = ImportAttachmentFetcher::fetchAll($data['followup_attachments'] ?? '');
+
         if ($draftBody !== '') {
-            EmailMessage::create([
+            $msg = EmailMessage::create([
                 'tenant_id'        => $import->tenant_id,
                 'user_id'          => $import->user_id,
                 'email_account_id' => $account->id,
@@ -384,10 +408,11 @@ class ContactImportController extends Controller
                 'direction'        => 'outbound',
                 'status'           => 'draft',
             ]);
+            ImportAttachmentFetcher::attachToMessage($msg, $draftFiles, $import->user_id, $import->tenant_id);
         }
 
         if ($followupBody !== '') {
-            EmailMessage::create([
+            $msg = EmailMessage::create([
                 'tenant_id'        => $import->tenant_id,
                 'user_id'          => $import->user_id,
                 'email_account_id' => $account->id,
@@ -403,6 +428,7 @@ class ContactImportController extends Controller
                 'is_follow_up'     => true,
                 'follow_up_number' => 1,
             ]);
+            ImportAttachmentFetcher::attachToMessage($msg, $followupFiles, $import->user_id, $import->tenant_id);
         }
     }
 

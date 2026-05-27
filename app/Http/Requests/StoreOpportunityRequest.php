@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreOpportunityRequest extends FormRequest
 {
@@ -14,7 +15,13 @@ class StoreOpportunityRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title'        => 'required|string|max:500',
+            'title'        => [
+                'required', 'string', 'max:500',
+                // Title is the unique key per user for opportunities — same
+                // contract the CSV importer uses for find-or-create.
+                Rule::unique('opportunities', 'title')
+                    ->where(fn ($q) => $q->where('user_id', $this->user()->id)->whereNull('deleted_at')),
+            ],
             'type'         => 'nullable|string|max:100',
             'organization' => 'nullable|string|max:255',
             'description'  => 'nullable|string|max:10000',

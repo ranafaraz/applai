@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreContactRequest extends FormRequest
 {
@@ -16,7 +17,12 @@ class StoreContactRequest extends FormRequest
         return [
             'first_name'    => 'required|string|max:255',
             'last_name'     => 'nullable|string|max:255',
-            'email'         => 'required|email|max:255',
+            'email'         => [
+                'required', 'email', 'max:255',
+                // Unique per-user: the same email can exist for different users
+                // (multi-tenant) but not twice within one user's contacts.
+                Rule::unique('contacts', 'email')->where(fn ($q) => $q->where('user_id', $this->user()->id)->whereNull('deleted_at')),
+            ],
             'phone'         => 'nullable|string|max:50',
             'company'       => 'nullable|string|max:255',
             'industry'      => 'nullable|string|max:255',

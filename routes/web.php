@@ -71,6 +71,8 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     // Opportunities
     // ---------------------------------------------------------------------------
+    Route::delete('opportunities/bulk', [OpportunityController::class, 'bulkDestroy'])
+        ->name('opportunities.bulk-destroy');
     Route::resource('opportunities', OpportunityController::class);
     Route::patch('opportunities/{id}/status', [OpportunityController::class, 'updateStatus'])
         ->name('opportunities.update-status');

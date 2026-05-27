@@ -53,11 +53,33 @@
     </div>
 </div>
 
+<form method="POST" action="{{ route('opportunities.bulk-destroy') }}"
+      x-data="{ selected: [], get allOnPage() { return Array.from(document.querySelectorAll('input[name=&quot;ids[]&quot;]')).map(el => el.value); } }"
+      @submit="if (!selected.length || !confirm('Delete ' + selected.length + ' opportunity(ies)? This cannot be undone.')) $event.preventDefault()">
+    @csrf
+    @method('DELETE')
+
+    {{-- Bulk action bar (only shows when something is selected) --}}
+    <div x-show="selected.length > 0" x-cloak class="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 flex items-center justify-between">
+        <p class="text-sm text-amber-800"><span x-text="selected.length"></span> selected</p>
+        <div class="flex items-center gap-2">
+            <button type="button" @click="selected = []" class="text-xs text-slate-600 hover:text-slate-800 font-medium px-3 py-1">Clear</button>
+            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md">Delete Selected</button>
+        </div>
+    </div>
+
 <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-slate-200 bg-slate-50">
+                    <th class="px-3 py-3 w-10">
+                        <input type="checkbox"
+                               @change="selected = $event.target.checked ? allOnPage : []"
+                               :checked="selected.length > 0 && selected.length === allOnPage.length"
+                               aria-label="Select all on this page"
+                               class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    </th>
                     <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-12">#</th>
                     <th class="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-14">ID</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Title</th>
@@ -101,6 +123,11 @@
                         $isOverdue = $opp->deadline && $opp->deadline->isPast() && !in_array($opp->status, ['offer', 'rejected']);
                     @endphp
                     <tr class="hover:bg-slate-50 cursor-pointer {{ $isOverdue ? 'bg-red-50' : '' }}" onclick="window.location='{{ route('opportunities.show', $opp) }}'">
+                        <td class="px-3 py-3.5" onclick="event.stopPropagation()">
+                            <input type="checkbox" name="ids[]" value="{{ $opp->id }}" x-model="selected"
+                                   aria-label="Select opportunity {{ $opp->id }}"
+                                   class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        </td>
                         <td class="px-4 py-3.5 text-xs text-slate-400">{{ ($opportunities->currentPage() - 1) * $opportunities->perPage() + $loop->iteration }}</td>
                         <td class="px-4 py-3.5 text-xs font-mono text-slate-500">#{{ $opp->id }}</td>
                         <td class="px-5 py-3.5 font-medium text-slate-800 max-w-xs">
@@ -125,17 +152,24 @@
                         <td class="px-5 py-3.5" onclick="event.stopPropagation()">
                             <div class="flex items-center gap-3">
                                 <a href="{{ route('opportunities.edit', $opp) }}" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Edit</a>
-                                <form method="POST" action="{{ route('opportunities.destroy', $opp) }}" onsubmit="return confirm('Delete this opportunity?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
-                                </form>
+                                {{-- Per-row delete: can't be a nested <form> inside the bulk-delete <form>,
+                                     so we submit via a one-off detached form built in JS. --}}
+                                <button type="button"
+                                        @click="if (confirm('Delete this opportunity?')) {
+                                            const f = document.createElement('form');
+                                            f.method = 'POST';
+                                            f.action = '{{ route('opportunities.destroy', $opp) }}';
+                                            f.innerHTML = '@csrf @method(\'DELETE\')';
+                                            document.body.appendChild(f);
+                                            f.submit();
+                                        }"
+                                        class="text-xs text-red-600 hover:text-red-800 font-medium">Delete</button>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="px-5 py-12 text-center">
+                        <td colspan="11" class="px-5 py-12 text-center">
                             <div class="flex flex-col items-center gap-2">
                                 <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                                 <p class="text-slate-500 text-sm font-medium">No opportunities found</p>
@@ -153,4 +187,5 @@
         </div>
     @endif
 </div>
+</form>
 @endsection
