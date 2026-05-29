@@ -25,8 +25,16 @@ use App\Http\Controllers\TagController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UserSettingController;
 use App\Http\Controllers\IntegrationController;
+use App\Http\Controllers\LandingController;
 use App\Http\Controllers\OpenApiController;
 use Illuminate\Support\Facades\Route;
+
+// ---------------------------------------------------------------------------
+// Public landing pages (no auth required)
+// ---------------------------------------------------------------------------
+Route::get('/',        [LandingController::class, 'index'])->name('home');
+Route::get('/privacy', [LandingController::class, 'privacy'])->name('privacy');
+Route::get('/terms',   [LandingController::class, 'terms'])->name('terms');
 
 // ---------------------------------------------------------------------------
 // Guest routes
@@ -44,9 +52,8 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    // Dashboard
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard', [DashboardController::class, 'index']);
+    // Dashboard (named route moved to /dashboard; / is now the public landing page)
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // ---------------------------------------------------------------------------
     // Email Accounts
