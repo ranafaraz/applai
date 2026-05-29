@@ -409,8 +409,22 @@ class OpenApiController extends Controller
                                         'required'   => ['items'],
                                         'properties' => [
                                             'items' => [
-                                                'type'  => 'array',
-                                                'items' => ['$ref' => '#/components/schemas/Opportunity'],
+                                                'type'     => 'array',
+                                                'maxItems' => 50,
+                                                'items'    => [
+                                                    'type'     => 'object',
+                                                    'required' => ['title', 'type', 'organization'],
+                                                    'properties' => [
+                                                        'title'        => ['type' => 'string', 'maxLength' => 255],
+                                                        'type'         => ['type' => 'string', 'enum' => ['job', 'scholarship', 'research', 'grant', 'networking']],
+                                                        'organization' => ['type' => 'string', 'maxLength' => 255],
+                                                        'description'  => ['type' => 'string'],
+                                                        'url'          => ['type' => 'string', 'format' => 'uri'],
+                                                        'deadline'     => ['type' => 'string', 'format' => 'date'],
+                                                        'priority'     => ['type' => 'string', 'enum' => ['low', 'medium', 'high', 'urgent']],
+                                                        'notes'        => ['type' => 'string'],
+                                                    ],
+                                                ],
                                             ],
                                         ],
                                     ],
@@ -427,9 +441,36 @@ class OpenApiController extends Controller
                         'description' => 'Accepts up to 50 contacts per call. Deduplicates by email. Requires scope: contacts:write.',
                         'requestBody' => [
                             'required' => true,
-                            'content' => ['application/json' => ['schema' => ['type' => 'object']]],
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => [
+                                        'type'       => 'object',
+                                        'required'   => ['items'],
+                                        'properties' => [
+                                            'items' => [
+                                                'type'     => 'array',
+                                                'maxItems' => 50,
+                                                'items'    => [
+                                                    'type'     => 'object',
+                                                    'required' => ['first_name'],
+                                                    'properties' => [
+                                                        'first_name'   => ['type' => 'string', 'maxLength' => 100],
+                                                        'last_name'    => ['type' => 'string', 'maxLength' => 100],
+                                                        'email'        => ['type' => 'string', 'format' => 'email'],
+                                                        'company'      => ['type' => 'string', 'maxLength' => 255],
+                                                        'job_title'    => ['type' => 'string', 'maxLength' => 255],
+                                                        'phone'        => ['type' => 'string', 'maxLength' => 50],
+                                                        'linkedin_url' => ['type' => 'string', 'format' => 'uri'],
+                                                        'notes'        => ['type' => 'string'],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
                         ],
-                        'responses' => ['201' => ['description' => 'Ingestion result']],
+                        'responses' => ['201' => ['description' => 'Ingestion result with created/duplicate counts']],
                     ],
                 ],
                 '/confirmations' => [
