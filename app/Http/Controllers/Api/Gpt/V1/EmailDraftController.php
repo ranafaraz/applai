@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Gpt\V1;
 
 use App\Models\Contact;
+use App\Models\EmailAccount;
 use App\Models\EmailMessage;
 use App\Models\Opportunity;
 use App\Models\SuppressionList;
@@ -72,11 +73,18 @@ class EmailDraftController extends GptController
             $opportunity = Opportunity::where('user_id', $user->id)->findOrFail($data['opportunity_id']);
         }
 
+        // Resolve sender account (prefer default, fallback to first active)
+        $emailAccount = EmailAccount::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->first();
+
         $draft = EmailMessage::create([
-            'user_id'        => $user->id,
-            'tenant_id'      => $user->tenant_id,
-            'contact_id'     => $contact->id,
-            'opportunity_id' => $opportunity?->id,
+            'user_id'          => $user->id,
+            'tenant_id'        => $user->tenant_id,
+            'email_account_id' => $emailAccount?->id,
+            'contact_id'       => $contact->id,
+            'opportunity_id'   => $opportunity?->id,
             'subject'        => $data['subject'],
             'body'           => $data['body'],
             'to_email'       => $contact->email,
