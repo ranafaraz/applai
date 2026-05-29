@@ -14,14 +14,14 @@ use Illuminate\Support\Facades\Route;
 
 // ---------------------------------------------------------------------------
 // GPT / MCP / n8n API  –  /api/gpt/v1
-// All routes require a valid X-Api-Key and are logged automatically.
 // ---------------------------------------------------------------------------
+
+// Health is public — schema marks it security:[] so ChatGPT won't send auth header here.
+Route::get('gpt/v1/health', HealthController::class)->middleware('throttle:60,1');
+
 Route::prefix('gpt/v1')
     ->middleware(['api.client', 'api.log', 'throttle:60,1'])
     ->group(function () {
-
-        // Health (no scope required)
-        Route::get('health', HealthController::class);
 
         // Identity
         Route::get('me', MeController::class);
