@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignId('added_by_user_id')->constrained('users')->onDelete('cascade');
             $table->timestamp('created_at')->useCurrent();
 
-            $table->unique(['email_message_id', 'api_attachment_id']);
+            $table->unique(['email_message_id', 'api_attachment_id'], 'api_att_draft_unique');
         });
     }
 
