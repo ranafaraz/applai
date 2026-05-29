@@ -14,7 +14,7 @@ class OpenApiController extends Controller
             'openapi' => '3.1.0',
             'info' => [
                 'title'       => 'Personal Outreach CRM – GPT Actions API',
-                'version'     => '1.2.0',
+                'version'     => '1.3.0',
                 'description' => 'Manage CRM data on behalf of the authenticated user. All actions require an X-Api-Key header. Email drafts are NEVER sent automatically — the user must review and send from the CRM UI.',
             ],
             'servers' => [
@@ -467,13 +467,6 @@ class OpenApiController extends Controller
                         'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
                         'responses'   => ['200' => ['description' => 'Attachment detail', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Attachment']]]]],
                     ],
-                    'delete' => [
-                        'operationId' => 'deleteAttachment',
-                        'summary'     => 'Delete an attachment record',
-                        'description' => 'Removes the attachment reference. Does not delete the remote file. Scope: attachments:write.',
-                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Attachment deleted']],
-                    ],
                 ],
 
                 // ---------------------------------------------------------------
@@ -561,13 +554,6 @@ class OpenApiController extends Controller
                     ],
                 ],
                 '/email-drafts/{draft_id}/attachments' => [
-                    'get' => [
-                        'operationId' => 'listDraftAttachments',
-                        'summary'     => 'List attachments on a draft',
-                        'description' => 'Scope: drafts:read.',
-                        'parameters'  => [['name' => 'draft_id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
-                        'responses'   => ['200' => ['description' => 'Draft attachments']],
-                    ],
                     'post' => [
                         'operationId' => 'addAttachmentsToDraft',
                         'summary'     => 'Link attachments to an existing draft',
@@ -586,19 +572,6 @@ class OpenApiController extends Controller
                         ],
                     ],
                 ],
-                '/email-drafts/{draft_id}/attachments/{attachment_id}' => [
-                    'delete' => [
-                        'operationId' => 'removeDraftAttachment',
-                        'summary'     => 'Remove an attachment from a draft',
-                        'description' => 'Unlinks the attachment without deleting the attachment record. Scope: drafts:create.',
-                        'parameters'  => [
-                            ['name' => 'draft_id',      'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                            ['name' => 'attachment_id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
-                        ],
-                        'responses' => ['200' => ['description' => 'Attachment removed from draft']],
-                    ],
-                ],
-
                 // ---------------------------------------------------------------
                 // Follow-ups
                 // ---------------------------------------------------------------
