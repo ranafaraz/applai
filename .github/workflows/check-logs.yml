@@ -15,4 +15,4 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
-            tail -200 /var/www/crm.dexdevs.com/storage/logs/laravel.log | grep -B2 -A30 "ERROR\|CRITICAL" | tail -100
+            grep "Gpt\|gpt\|opportunities\|AiAction\|OpportunityController\|timeline_events\|TimelineEvent" /var/www/crm.dexdevs.com/storage/logs/laravel.log | tail -50
