@@ -68,6 +68,7 @@ class IngestionController extends GptController
                 'timelineable_id'   => $opp->id,
                 'event_type'        => 'created',
                 'description'       => "Opportunity ingested via {$client->source_type} ({$client->name}).",
+                'happened_at'       => now(),
             ]);
 
             $created[] = ['id' => $opp->id, 'title' => $opp->title];

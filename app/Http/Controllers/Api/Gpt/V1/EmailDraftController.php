@@ -93,6 +93,7 @@ class EmailDraftController extends GptController
             'timelineable_id'   => $draft->id,
             'event_type'        => 'draft_created',
             'description'       => "Email draft created via AI integration ({$this->apiClient($request)->source_type}). Subject: {$draft->subject}",
+            'happened_at'       => now(),
         ]);
 
         $this->audit($request, 'create_draft', 'email_message', $draft->id, 'medium',

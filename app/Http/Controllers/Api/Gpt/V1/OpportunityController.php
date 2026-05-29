@@ -117,12 +117,13 @@ class OpportunityController extends GptController
         ]);
 
         TimelineEvent::create([
-            'user_id'          => $user->id,
-            'tenant_id'        => $user->tenant_id,
+            'user_id'           => $user->id,
+            'tenant_id'         => $user->tenant_id,
             'timelineable_type' => Opportunity::class,
             'timelineable_id'   => $opp->id,
-            'event_type'       => 'created',
-            'description'      => "Opportunity created via AI integration ({$this->apiClient($request)->source_type}).",
+            'event_type'        => 'created',
+            'description'       => "Opportunity created via AI integration ({$this->apiClient($request)->source_type}).",
+            'happened_at'       => now(),
         ]);
 
         $this->audit($request, 'create_opportunity', 'opportunity', $opp->id, 'low',
