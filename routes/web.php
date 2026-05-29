@@ -24,6 +24,8 @@ use App\Http\Controllers\SuppressionListController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UserSettingController;
+use App\Http\Controllers\IntegrationController;
+use App\Http\Controllers\OpenApiController;
 use Illuminate\Support\Facades\Route;
 
 // ---------------------------------------------------------------------------
@@ -198,6 +200,23 @@ Route::middleware('auth')->group(function () {
     Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('notifications/preferences', [NotificationController::class, 'updatePreference'])->name('notifications.preferences');
+});
+
+// ---------------------------------------------------------------------------
+// OpenAPI schema (public – no auth required for GPT Actions import)
+// ---------------------------------------------------------------------------
+Route::get('/openapi/gpt-actions.json', [OpenApiController::class, 'gptActions'])
+    ->name('openapi.gpt-actions');
+
+// ---------------------------------------------------------------------------
+// Integration / API key management (requires auth)
+// ---------------------------------------------------------------------------
+Route::middleware('auth')->prefix('settings/integrations')->name('integrations.')->group(function () {
+    Route::get('/', [IntegrationController::class, 'index'])->name('index');
+    Route::post('/clients', [IntegrationController::class, 'createClient'])->name('clients.store');
+    Route::post('/clients/{client}/tokens', [IntegrationController::class, 'createToken'])->name('tokens.store');
+    Route::delete('/clients/{client}', [IntegrationController::class, 'deleteClient'])->name('clients.destroy');
+    Route::delete('/tokens/{token}', [IntegrationController::class, 'revokeToken'])->name('tokens.revoke');
 });
 
 // ---------------------------------------------------------------------------
