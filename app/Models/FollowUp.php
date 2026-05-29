@@ -83,7 +83,7 @@ class FollowUp extends Model
     public function apiAttachments(): BelongsToMany
     {
         return $this->belongsToMany(ApiAttachment::class, 'api_attachment_follow_up', 'follow_up_id', 'api_attachment_id')
-            ->withTimestamps();
+            ->withPivot('created_at');
     }
 
     // -------------------------------------------------------------------------

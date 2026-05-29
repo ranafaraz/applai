@@ -107,8 +107,7 @@ class EmailMessage extends Model
     public function apiAttachments(): BelongsToMany
     {
         return $this->belongsToMany(ApiAttachment::class, 'api_attachment_email_draft', 'email_message_id', 'api_attachment_id')
-            ->withPivot('added_by_user_id')
-            ->withTimestamps();
+            ->withPivot('added_by_user_id', 'created_at');
     }
 
     /**
