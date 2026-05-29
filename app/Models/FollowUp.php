@@ -6,6 +6,7 @@ use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 
 class FollowUp extends Model
@@ -27,6 +28,8 @@ class FollowUp extends Model
         'cancel_reason',
         'subject',
         'body',
+        'email_signature_id',
+        'rendered_signature',
     ];
 
     protected function casts(): array
@@ -70,6 +73,17 @@ class FollowUp extends Model
     public function emailMessage(): BelongsTo
     {
         return $this->belongsTo(EmailMessage::class);
+    }
+
+    public function emailSignature(): BelongsTo
+    {
+        return $this->belongsTo(EmailSignature::class);
+    }
+
+    public function apiAttachments(): BelongsToMany
+    {
+        return $this->belongsToMany(ApiAttachment::class, 'api_attachment_follow_up', 'follow_up_id', 'api_attachment_id')
+            ->withTimestamps();
     }
 
     // -------------------------------------------------------------------------

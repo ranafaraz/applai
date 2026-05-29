@@ -10,6 +10,10 @@ use App\Http\Controllers\Api\Gpt\V1\FollowUpController;
 use App\Http\Controllers\Api\Gpt\V1\ReplyController;
 use App\Http\Controllers\Api\Gpt\V1\IngestionController;
 use App\Http\Controllers\Api\Gpt\V1\ConfirmationController;
+use App\Http\Controllers\Api\Gpt\V1\SignatureController;
+use App\Http\Controllers\Api\Gpt\V1\AttachmentController;
+use App\Http\Controllers\Api\Gpt\V1\DraftAttachmentController;
+use App\Http\Controllers\Api\Gpt\V1\DraftPreviewController;
 use Illuminate\Support\Facades\Route;
 
 // ---------------------------------------------------------------------------
@@ -50,13 +54,53 @@ Route::prefix('gpt/v1')
         Route::post('contacts/{id}/notes', [ContactController::class, 'addNote'])
             ->middleware(['api.scope:notes:write', 'throttle:20,1']);
 
-        // Email Drafts (never sends – requires_review is always true)
+        // ---------------------------------------------------------------------------
+        // Signatures
+        // ---------------------------------------------------------------------------
+        Route::get('signatures', [SignatureController::class, 'index'])
+            ->middleware('api.scope:signatures:read');
+        Route::post('signatures', [SignatureController::class, 'store'])
+            ->middleware(['api.scope:signatures:write', 'throttle:20,1']);
+        Route::get('signatures/{id}', [SignatureController::class, 'show'])
+            ->middleware('api.scope:signatures:read');
+        Route::patch('signatures/{id}', [SignatureController::class, 'update'])
+            ->middleware(['api.scope:signatures:write', 'throttle:20,1']);
+        Route::delete('signatures/{id}', [SignatureController::class, 'destroy'])
+            ->middleware('api.scope:signatures:write');
+
+        // ---------------------------------------------------------------------------
+        // Attachments
+        // ---------------------------------------------------------------------------
+        Route::post('attachments', [AttachmentController::class, 'store'])
+            ->middleware(['api.scope:attachments:write', 'throttle:20,1']);
+        Route::get('attachments/{id}', [AttachmentController::class, 'show'])
+            ->middleware('api.scope:attachments:read');
+        Route::delete('attachments/{id}', [AttachmentController::class, 'destroy'])
+            ->middleware('api.scope:attachments:write');
+
+        // ---------------------------------------------------------------------------
+        // Email Drafts
+        // ---------------------------------------------------------------------------
         Route::get('email-drafts', [EmailDraftController::class, 'index'])
             ->middleware('api.scope:drafts:read');
         Route::post('email-drafts', [EmailDraftController::class, 'store'])
             ->middleware(['api.scope:drafts:create', 'throttle:5,1']);
 
-        // Follow-ups (reminder-only in MVP)
+        // Draft attachments (manage after draft creation)
+        Route::get('email-drafts/{draft_id}/attachments', [DraftAttachmentController::class, 'index'])
+            ->middleware('api.scope:drafts:read');
+        Route::post('email-drafts/{draft_id}/attachments', [DraftAttachmentController::class, 'store'])
+            ->middleware(['api.scope:drafts:create', 'api.scope:attachments:write', 'throttle:20,1']);
+        Route::delete('email-drafts/{draft_id}/attachments/{attachment_id}', [DraftAttachmentController::class, 'destroy'])
+            ->middleware('api.scope:drafts:create');
+
+        // Draft rendered preview
+        Route::get('email-drafts/{id}/rendered-preview', [DraftPreviewController::class, 'show'])
+            ->middleware('api.scope:drafts:read');
+
+        // ---------------------------------------------------------------------------
+        // Follow-ups
+        // ---------------------------------------------------------------------------
         Route::get('follow-ups/due', [FollowUpController::class, 'due'])
             ->middleware('api.scope:followups:read');
         Route::post('follow-ups', [FollowUpController::class, 'store'])

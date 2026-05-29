@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -30,6 +31,7 @@ class EmailMessage extends Model
         'opportunity_id',
         'template_id',
         'email_signature_id',
+        'rendered_signature',
         'message_id',
         'subject',
         'body',
@@ -100,6 +102,13 @@ class EmailMessage extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(EmailAttachment::class);
+    }
+
+    public function apiAttachments(): BelongsToMany
+    {
+        return $this->belongsToMany(ApiAttachment::class, 'api_attachment_email_draft', 'email_message_id', 'api_attachment_id')
+            ->withPivot('added_by_user_id')
+            ->withTimestamps();
     }
 
     /**
