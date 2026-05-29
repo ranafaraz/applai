@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SocialOAuthApp extends Model
 {
+    protected $table = 'social_oauth_apps';
+
     protected $fillable = [
         'tenant_id', 'user_id', 'provider_key',
         'label', 'client_id', 'client_secret_encrypted',
