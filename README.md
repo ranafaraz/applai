@@ -1,38 +1,37 @@
 # Personal Outreach CRM
 
-A Laravel-based personal operating system for professional outreach and visibility. The application centralizes contacts, opportunities, email outreach, follow-ups, documents, and reporting, and now includes **Social Studio** for LinkedIn content planning, approval, publishing, media handling, and analytics.
+A Laravel-based personal operating system for professional outreach and visibility. It centralizes contacts, opportunities, email outreach, replies, follow-ups, documents, reporting, and **Social Studio** for LinkedIn content planning, approval, publishing, media, and analytics.
 
-The project is designed so that AI tools such as ChatGPT, GPT Actions, MCP clients, or workflow automation can create structured drafts and recommendations while the CRM remains the system of record and the user remains in control of high-impact actions such as publishing.
+The CRM is designed to remain the system of record while AI tools such as ChatGPT, GPT Actions, MCP clients, or workflow automation create structured drafts and recommendations. High-impact actions such as social publishing remain approval-controlled.
 
-## Product Scope
+## Scope
 
 ### Outreach CRM
 
-- Manage contacts for networking, applications, research, grants, and scholarship outreach.
-- Track opportunities, statuses, priorities, deadlines, notes, and linked contacts.
-- Compose email drafts, use signatures/templates, attach documents, schedule messages, and monitor sending activity.
-- Sync replies through IMAP, process follow-ups, maintain suppression lists, and review outreach reports.
-- Import contacts and opportunities and maintain a timeline/audit trail of activity.
+- Contacts for networking, applications, research, grant, and scholarship outreach.
+- Opportunities with status, priority, deadline, notes, URLs, and linked contacts.
+- Email accounts, templates, signatures, attachments, drafts, scheduled sending, inbox sync, follow-ups, suppression controls, reporting, and audit activity.
+- CSV-based contact and opportunity ingestion.
+- Tenant/team administration and API client integration management.
 
 ### Social Studio — LinkedIn First
 
-- Connect LinkedIn accounts through OAuth and retain account capability/status metadata.
-- Create LinkedIn drafts for text, article-link, image, and multi-image publishing flows.
-- Maintain a media library, attach featured assets, and store alt text for image posts.
-- Review, approve, schedule, publish, update, and delete LinkedIn content through the CRM workflow.
-- Store LinkedIn post URNs/URLs, publishing activity, provider status, and analytics snapshots.
-- Provide a foundation for additional social providers in future iterations.
+- LinkedIn OAuth app and connected-account management.
+- Text, article-link, image, and multi-image post workflows.
+- Media library, featured assets, approval metadata, and image alt text.
+- Drafting, review, approval, scheduling, publication, published-post status, and analytics surfaces.
+- Architecture intended to support additional social providers later.
 
 ### AI and Automation Integration
 
-- Expose scoped API-key protected endpoints for CRM and Social Studio automation.
-- Publish public OpenAPI documents for GPT Actions import.
-- Support external clients such as ChatGPT, MCP, and n8n-style ingestion workflows.
-- Keep publication gated behind approval controls rather than permitting unrestricted AI posting.
+- Scoped API-key protected endpoints for CRM and Social Studio automation.
+- Public OpenAPI definitions for GPT Actions import.
+- MCP client foundation and API patterns suitable for workflow automation.
+- Human approval boundary for social publishing.
 
 ---
 
-## Technical Stack
+## Technology Stack
 
 | Layer | Technology |
 |---|---|
@@ -40,93 +39,75 @@ The project is designed so that AI tools such as ChatGPT, GPT Actions, MCP clien
 | UI | Blade, Livewire `^4.3`, Tailwind CSS, Alpine.js |
 | Database | MariaDB / MySQL |
 | Queues and scheduling | Laravel database queues and scheduler |
-| Email / inbox | Symfony Mailer through Laravel, `webklex/php-imap` |
+| Email / inbox | Laravel mail stack and `webklex/php-imap` |
 | Imports | `league/csv` |
-| Activity logging | `spatie/laravel-activitylog` plus domain activity/audit records |
+| Activity logging | `spatie/laravel-activitylog` plus domain audit/activity records |
 | Social provider | LinkedIn REST API with OAuth tokens |
-| API integration | `X-Api-Key` clients with scopes, OpenAPI schemas, MCP client support |
+| External automation | Scoped `X-Api-Key` APIs, OpenAPI schemas, MCP client support |
 
 ---
 
-## Core Architecture
-
-The application is a Laravel monolith with clear domain boundaries:
+## Architecture
 
 ```text
 app/
-  Console/Commands/
-    CRM scheduled tasks and social publication/analytics commands
-  Events/ and Listeners/
-    Email and reply-driven workflow activity
+  Console/Commands/       CRM jobs, social publishing, analytics synchronization
+  Events/ and Listeners/  Email and reply-driven workflow activity
   Http/Controllers/
-    Web UI, admin, integration management, OpenAPI generation
-    Api/Gpt/V1/             Scoped automation endpoints
-    SocialStudio/           LinkedIn-focused web workflow
-  Http/Middleware/
-    API client authentication, scope enforcement, request logging
-  Jobs/
-    Email, sync/import, and LinkedIn publication jobs
-  Models/
-    CRM, integration, tenant, and social studio persistence models
+    Api/Gpt/V1/           Scoped external automation endpoints
+    SocialStudio/         LinkedIn-focused web workflow
+    Admin/                Tenant and administration surfaces
+  Http/Middleware/        API client authentication, scope and logging middleware
+  Jobs/                   Email, import/sync, and LinkedIn publishing jobs
+  Models/                 CRM, API integration, tenant, and social persistence
   Services/
-    Email, IMAP, follow-up, import, dashboard, timeline services
-    Social/                 LinkedIn API, media, publishing services
+    Email/IMAP/follow-up/dashboard/timeline services
+    Social/               LinkedIn client, media and publishing services
 
 routes/
-  web.php                   CRM UI, Social Studio UI, integrations, OpenAPI URLs
-  api.php                   GPT/automation CRM and Social Studio APIs
-  console.php               Scheduler configuration
+  web.php                 Browser UI, Social Studio, integrations, OpenAPI URLs
+  api.php                 GPT/automation and Social Studio APIs
+  console.php             Scheduler definitions
 
 mcp/
-  src/crm-client.ts         X-Api-Key based external CRM client foundation
+  src/crm-client.ts       External CRM client using X-Api-Key authentication
 ```
 
-### Domain Workflow Model
+### Workflow Model
 
 ```text
 Research / AI drafting
         ↓
-CRM draft + media asset storage
+CRM draft and media asset storage
         ↓
 Human review and approval
         ↓
 Schedule or publish action
         ↓
-Queue / Laravel scheduler
+Laravel scheduler / queue
         ↓
 LinkedIn REST API
         ↓
-Published-post tracking and analytics snapshots
+Post tracking and analytics snapshots
 ```
 
 ---
 
-## Main Web Areas
+## Major Web Areas
 
-Authenticated application areas include:
+Authenticated screens include dashboard, contacts, opportunities, documents, imports, email accounts, email templates, signatures, outbox, inbox, follow-ups, reports, tags, audit logs, notifications, settings, integrations, and administration screens where authorized.
 
-- Dashboard, contacts, opportunities, documents, imports, email accounts, email templates, signatures, outbox, inbox, follow-ups, reports, tags, audit logs, notifications, and settings.
-- Social Studio dashboard, OAuth apps, connected accounts, posts, calendar, published content, insights, and media library.
-- Integration/API client management under Settings → Integrations.
-- Tenant administration and super-admin screens where authorized.
+Social Studio includes dashboard, OAuth apps, connected accounts, posts, calendar, published content, insights, and media library routes.
 
-Public endpoints include landing/privacy/terms pages and OpenAPI schema documents for external AI integration.
+Public application endpoints include landing/privacy/terms pages and the OpenAPI schema documents described below.
 
 ---
 
 ## API and GPT Actions Integration
 
-### Authentication Model
+### Authentication
 
-Automation APIs use an `X-Api-Key` header generated through **Settings → Integrations**. The API authentication middleware validates:
-
-- Token presence, validity, activation and expiry.
-- API client activation and expiry.
-- Optional IP allowlisting.
-- Client/token last-used timestamps.
-- User binding for downstream tenant/user-scoped queries.
-
-Example request header:
+Automation APIs use an `X-Api-Key` header generated in **Settings → Integrations**. Middleware validates token status and expiry, client status and expiry, optional IP allowlisting, and binds the corresponding application user for scoped access.
 
 ```http
 X-Api-Key: pocrm_live_<token>
@@ -136,53 +117,36 @@ Content-Type: application/json
 
 ### OpenAPI Documents
 
-The application exposes separate public schemas so an AI client does not need one oversized action definition:
-
-| Schema | Purpose |
+| URL | Purpose |
 |---|---|
-| `/openapi/gpt-actions.json` | CRM opportunities, contacts, drafts, attachments, signatures, follow-ups, replies and ingestion capabilities |
-| `/openapi/social-gpt-actions.json` | Social Studio / LinkedIn drafting, media, confirmation, publishing-status and analytics capabilities |
+| `/openapi/gpt-actions.json` | CRM opportunities, contacts, drafts, attachments, signatures, follow-ups, replies, and ingestion |
+| `/openapi/social-gpt-actions.json` | LinkedIn drafting, media, confirmations, publication status, and analytics |
+
+Keeping CRM and Social Studio in separate schemas also keeps action definitions manageable for GPT integrations.
 
 ### CRM Automation API
 
 Base path: `/api/gpt/v1`
 
-Major capabilities:
-
-- Health and authenticated identity checks.
-- Dashboard summary.
-- Opportunity and contact search/creation/note linking.
-- Signatures and attachment management.
-- Email draft creation, preview and attachment handling.
-- Follow-up and recent reply retrieval.
-- Bulk contact/opportunity ingestion.
-- Confirmation records for controlled AI actions.
+Capabilities include health and identity checks, dashboard summaries, opportunity/contact management, notes and links, signatures, attachments, email drafts and rendered previews, follow-ups, recent replies, ingestion endpoints, and confirmation records.
 
 ### Social Studio Automation API
 
 Base path: `/api/social/v1`
 
-Major capabilities:
+Capabilities include connected-account inspection and verification, LinkedIn draft CRUD, media asset creation and association, provider upload flow, publication confirmation requests, provider-status reads, and analytics retrieval/synchronization where provider permissions allow it.
 
-- Read/verify LinkedIn connected accounts.
-- Create, retrieve, update and delete LinkedIn post drafts.
-- Upload CRM media assets and attach/detach media from posts.
-- Upload approved media to LinkedIn during publication workflows.
-- Request publication confirmations and inspect their state.
-- Read provider status for published posts.
-- Retrieve or synchronize LinkedIn analytics where the connected account has the necessary permissions.
+### AI Safety Boundary
 
-### Safety Boundary for AI Clients
-
-Draft creation and content management may be automated. Publishing is intentionally gated: a LinkedIn post must be approved before `LinkedInPublishService` will publish it. Content edits after approval should reset approval before further publication.
+AI integrations may create and revise drafts. Publication is approval-gated: `LinkedInPublishService` refuses to publish unapproved posts. Changes made after approval should invalidate or reset approval before publication proceeds.
 
 ---
 
 ## Social Studio Technical Details
 
-### LinkedIn OAuth Setup
+### LinkedIn OAuth Configuration
 
-Create a LinkedIn developer application and enable the **Share on LinkedIn** product. Configure production values in `.env`:
+Create a LinkedIn developer application and enable **Share on LinkedIn**. Configure production values in `.env`:
 
 ```env
 LINKEDIN_CLIENT_ID=
@@ -191,41 +155,41 @@ LINKEDIN_REDIRECT_URI="${APP_URL}/social-studio/connections/callback"
 LINKEDIN_SCOPES="w_member_social openid profile email"
 ```
 
-The application stores connected-account access and refresh tokens using Laravel encrypted casts. Account records track status, expiration, granted/missing scopes, capability metadata, and whether an account is the default posting target.
+Access and refresh tokens are persisted through Laravel encrypted casts. Connected-account records track account URN, status, token expiry, granted/missing scopes, capabilities, and default-account selection.
 
-### LinkedIn Publishing Support
+### LinkedIn Publishing
 
-The publishing service builds LinkedIn REST payloads for:
+The publishing services support:
 
-- Plain text posts.
+- Text posts.
 - Article-link posts.
 - Single-image posts.
-- Multi-image posts through approved attached media assets.
+- Multi-image posts using approved attached media assets.
 
-For image publishing, media must be approved and uploaded to LinkedIn before the post payload is sent. LinkedIn URNs and derived public post URLs are retained after publication.
+For image publication, assets must be approved and uploaded to LinkedIn before post creation. Published posts retain the returned LinkedIn URN and an application-derived LinkedIn post URL when the URN pattern is recognized.
 
 ### Analytics Permissions
 
-Publishing through `w_member_social` does not necessarily provide analytics access. The analytics client code expects additional LinkedIn permissions for member post and follower statistics. Analytics endpoints should therefore be treated as capability-dependent and may return permission errors until LinkedIn approves the required access for the application/account.
+The implemented analytics client calls member post and follower statistics endpoints and explicitly handles missing analytics permissions. Publishing permission alone does not guarantee analytics access; analytics behavior is capability-dependent on LinkedIn access granted to the app/account.
 
-### Publication States and Controls
+### Publish Guards
 
-The social implementation stores draft content, approval state, schedule state, LinkedIn target/account association, media associations, publishing jobs, confirmation tokens, audit events and analytics snapshots. Publishing guards prevent sending when:
+Publishing is rejected when:
 
-- The target is already published.
-- The LinkedIn account is disconnected or its token has expired.
-- A LinkedIn member/person URN has not been resolved.
-- The post has not been approved.
+- A target has already been published.
+- The selected LinkedIn account is disconnected or the token is expired.
+- No LinkedIn member/person URN is available.
+- The post approval state is not `approved`.
 
 ---
 
-## Important Implementation Note: GPT-Scheduled Social Posts
+## Known Workflow Hardening Item: GPT-Scheduled Social Posts
 
-The web Social Studio workflow updates post targets into the `scheduled` state consumed by the `social:publish-due-posts` scheduler.
+The browser-based Social Studio scheduling workflow sets post targets to `scheduled`, which is the state consumed by the `social:publish-due-posts` scheduler.
 
-The current GPT/API confirmation workflow supports requesting a `schedule` confirmation, but its approval handler does not yet visibly mirror the approved schedule onto a `SocialPostTarget` record in the same way the web workflow does. Because the scheduled publisher only processes targets already marked `scheduled` and due, a schedule created exclusively through the GPT/API flow should be verified in the CRM UI until that handoff is completed and covered by integration tests.
+The current GPT/API confirmation workflow accepts a `schedule` confirmation request, but its approval handler does not visibly copy the approved schedule into a scheduled `SocialPostTarget` in the same way as the web workflow. Since the scheduler only processes due targets already marked `scheduled`, schedules created exclusively through the GPT/API flow should be verified in the CRM UI until this handoff is completed and protected by integration tests.
 
-This is a known workflow-hardening item, not a recommendation to bypass approval.
+This limitation should be fixed without weakening the approval requirement.
 
 ---
 
@@ -258,12 +222,11 @@ sudo mariadb -u root -p -e "
 cd /var/www
 git clone https://github.com/ranafaraz/personal-crm.git personal-crm
 cd personal-crm
-
 composer install --no-dev --optimize-autoloader
 cp .env.example .env
 ```
 
-Edit `.env` for production:
+Set production `.env` values:
 
 ```env
 APP_NAME="Personal Outreach CRM"
@@ -290,7 +253,7 @@ LINKEDIN_SCOPES="w_member_social openid profile email"
 ```bash
 php artisan key:generate
 php artisan migrate --force
-php artisan db:seed --force        # loads demo data when desired
+php artisan db:seed --force        # only when seeded/demo data is desired
 php artisan storage:link
 
 sudo chown -R www-data:www-data /var/www/personal-crm
@@ -339,31 +302,13 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d your-domain.com
 ```
 
-### 5. Apache Alternative
-
-```apache
-<VirtualHost *:443>
-    ServerName your-domain.com
-    DocumentRoot /var/www/personal-crm/public
-    SSLEngine on
-    SSLCertificateFile /etc/letsencrypt/live/your-domain.com/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/your-domain.com/privkey.pem
-    <Directory /var/www/personal-crm/public>
-        AllowOverride All
-        Require all granted
-    </Directory>
-</VirtualHost>
-```
-
-### 6. Laravel Scheduler
+### 5. Laravel Scheduler
 
 ```bash
 sudo crontab -u www-data -e
 # Add:
 * * * * * cd /var/www/personal-crm && php artisan schedule:run >> /dev/null 2>&1
 ```
-
-Configured tasks include:
 
 | Frequency | Task | Command |
 |---|---|---|
@@ -375,7 +320,7 @@ Configured tasks include:
 | Hourly | Sync recent LinkedIn analytics | `social:sync-linkedin-analytics --hours=72` |
 | Daily at 03:00 | Sync broader LinkedIn analytics window | `social:sync-linkedin-analytics --hours=720` |
 
-### 7. Queue Worker with Supervisor
+### 6. Queue Worker with Supervisor
 
 ```bash
 sudo apt install -y supervisor
@@ -385,7 +330,7 @@ sudo apt install -y supervisor
 
 ```ini
 [program:crm-worker]
-process_name=%(program_name)02d
+process_name=%(program_name)s_%(process_num)02d
 command=php /var/www/personal-crm/artisan queue:work database --sleep=3 --tries=3 --max-time=3600
 autostart=true
 autorestart=true
@@ -406,12 +351,12 @@ sudo supervisorctl start crm-worker:*
 
 1. Enable two-factor authentication for the Google account.
 2. Generate a Google App Password.
-3. Add the mailbox account in the CRM with:
+3. Add the mailbox in the CRM:
    - SMTP: `smtp.gmail.com:587`, encryption `tls`
    - IMAP: `imap.gmail.com:993`, encryption `ssl`
-   - Password: the App Password, not the main Google password.
+   - Password: the App Password, not the primary Google password.
 
-SMTP/IMAP credentials are stored encrypted at rest using Laravel encrypted casts and should not be displayed again after saving.
+SMTP/IMAP credentials are stored encrypted at rest using Laravel encrypted casts and should not be shown again after saving.
 
 ---
 
@@ -425,34 +370,32 @@ npm run build
 php artisan test
 ```
 
-For local concurrent Laravel, queue, log and Vite processes, the Composer development script is available:
+For local Laravel, queue, log and Vite processes:
 
 ```bash
 composer run dev
 ```
 
-### Testing Priorities for Continued Development
+### Priority Integration Tests
 
-The highest-value integration coverage areas are:
-
-- GPT/API draft → approval → scheduled LinkedIn target → scheduler → publish lifecycle.
+- GPT/API draft → approval → scheduled target → scheduler → LinkedIn publish lifecycle.
 - Approval invalidation after content edits.
-- Token expiration, missing permissions and account reconnection behavior.
+- Token expiration, permission errors, and account reconnection.
 - Image/media approval and upload before publication.
-- API-scope enforcement and tenant/user isolation.
+- API scope enforcement and tenant/user isolation.
 - Analytics permission failures and snapshot synchronization.
 
 ---
 
 ## Security and Operational Notes
 
-- SMTP/IMAP credentials and LinkedIn access/refresh tokens are encrypted using Laravel encrypted casts.
-- API clients use scoped `X-Api-Key` credentials with activation, expiry and optional IP allowlists.
-- User-owned social posts and connected accounts are queried by `user_id`; maintain the same ownership boundary for new features.
-- Publication is approval-gated; do not weaken this guard for AI integrations.
+- SMTP/IMAP credentials and LinkedIn access/refresh tokens use Laravel encrypted casts.
+- API clients use scoped `X-Api-Key` credentials with activation, expiry, and optional IP allowlists.
+- User-owned CRM and social records must remain scoped to the authenticated user/tenant.
+- Publication is approval-gated; do not weaken this control for AI integrations.
 - Suppression checks and per-account email limits protect outbound email workflows.
-- Provider failures are sanitized before recording/logging where implemented; retain that pattern for future integrations.
-- Use HTTPS in production and protect OAuth application secrets and API keys through environment configuration.
+- Provider errors should be sanitized before storage or logging.
+- Use HTTPS in production and store OAuth secrets and API keys only through protected configuration.
 
 ---
 
