@@ -66,11 +66,12 @@ class LinkedInPostController extends GptController
         $post = SocialPost::create(array_merge($data, [
             'user_id'         => $user->id,
             'tenant_id'       => $user->tenant_id,
+            'title_internal'  => $data['title_internal'] ?? '',
             'status'          => 'draft',
-            'approval_status' => 'pending',
+            'approval_status' => 'pending_review',
             'content_version' => 1,
             'idempotency_key' => Str::uuid()->toString(),
-            'created_source'  => 'gpt_api',
+            'created_source'  => 'chatgpt',
         ]));
 
         $this->audit($request, 'linkedin_post_create', SocialPost::class, $post->id, 'low');
@@ -204,7 +205,7 @@ class LinkedInPostController extends GptController
             'confirmation_token' => 'required|string',
         ]);
 
-        $confirmation = $this->resolveUsableConfirmation($post, $data['confirmation_token'], 'update_published');
+        $confirmation = $this->resolveUsableConfirmation($post, $data['confirmation_token']);
         if (! $confirmation) {
             return response()->json(['error' => 'No valid approved confirmation found. Request and approve a confirmation first.'], 403);
         }
@@ -253,7 +254,7 @@ class LinkedInPostController extends GptController
 
         $data = $request->validate(['confirmation_token' => 'required|string']);
 
-        $confirmation = $this->resolveUsableConfirmation($post, $data['confirmation_token'], 'delete_published');
+        $confirmation = $this->resolveUsableConfirmation($post, $data['confirmation_token']);
         if (! $confirmation) {
             return response()->json(['error' => 'No valid approved confirmation found. Request and approve a confirmation first.'], 403);
         }
@@ -332,7 +333,6 @@ class LinkedInPostController extends GptController
     private function resolveUsableConfirmation(
         SocialPost $post,
         string $token,
-        string $action
     ): ?SocialPostConfirmation {
         $confirmation = SocialPostConfirmation::where('confirmation_token', $token)
             ->where('social_post_id', $post->id)
