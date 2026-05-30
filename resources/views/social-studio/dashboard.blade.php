@@ -89,6 +89,32 @@
     </div>
     @endif
 
+    {{-- Recent Published Posts --}}
+    @if($recentPublished->isNotEmpty())
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <h2 class="text-sm font-semibold text-slate-700">Published Posts</h2>
+            <a href="{{ route('social-studio.published') }}" class="text-xs text-indigo-600 hover:underline">View all</a>
+        </div>
+        <div class="divide-y divide-slate-50">
+            @foreach($recentPublished as $post)
+            <div class="flex items-center justify-between px-5 py-3">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-800 truncate">{{ $post->title_internal }}</p>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        {{ $post->updated_at->diffForHumans() }}
+                        @if($post->linkedin_post_url)
+                            · <a href="{{ $post->linkedin_post_url }}" target="_blank" rel="noopener" class="text-indigo-500 hover:underline">LinkedIn</a>
+                        @endif
+                    </p>
+                </div>
+                <a href="{{ route('social-studio.posts.show', $post->id) }}" class="ml-4 text-xs text-slate-400 hover:text-slate-700 flex-shrink-0">View</a>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     {{-- Coming-soon platforms --}}
     <div class="bg-white rounded-xl border border-slate-200 p-5">
         <h2 class="text-sm font-semibold text-slate-700 mb-3">Coming Soon</h2>

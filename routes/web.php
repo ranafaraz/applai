@@ -263,6 +263,7 @@ Route::middleware('auth')->prefix('social-studio')->name('social-studio.')->grou
 
     // Insights
     Route::get('insights', [SocialInsightsController::class, 'index'])->name('insights');
+    Route::post('insights/sync', [SocialInsightsController::class, 'syncNow'])->name('insights.sync');
 
     // Media Library
     Route::get('media', [SocialMediaController::class, 'index'])->name('media.index');

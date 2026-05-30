@@ -32,9 +32,15 @@ class DashboardController extends Controller
 
         $providers = SocialProvider::all();
 
+        $recentPublished = SocialPost::where('user_id', $user->id)
+            ->where('status', 'published')
+            ->orderByDesc('updated_at')
+            ->limit(5)
+            ->get();
+
         return view('social-studio.dashboard', compact(
             'draftsCount', 'scheduledCount', 'failedCount',
-            'lastPublished', 'linkedInAccount', 'providers'
+            'lastPublished', 'linkedInAccount', 'providers', 'recentPublished'
         ));
     }
 }

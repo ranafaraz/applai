@@ -5,15 +5,29 @@
 <div class="p-6 space-y-6">
 
     {{-- Header --}}
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between flex-wrap gap-3">
         <div>
             <h1 class="text-2xl font-bold text-slate-800">LinkedIn Insights</h1>
             <p class="text-sm text-slate-500 mt-1">Analytics for your connected LinkedIn accounts</p>
         </div>
-        <form method="POST" action="#" id="sync-form">
+        <form method="POST" action="{{ route('social-studio.insights.sync') }}">
             @csrf
+            <button type="submit"
+                    class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Sync Now
+            </button>
         </form>
     </div>
+
+    @if(session('success'))
+        <div class="bg-green-50 border border-green-200 text-green-800 text-sm rounded-lg px-4 py-3">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-4 py-3">{{ session('error') }}</div>
+    @endif
 
     @if(! $hasData)
         <div class="bg-white rounded-xl border border-slate-200 p-10 text-center">

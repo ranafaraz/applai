@@ -303,7 +303,26 @@ class PostController extends Controller
 
         $target = $post->targets()->where('status', '!=', 'published')->first();
         if (! $target) {
-            return back()->with('error', 'No publishable target found.');
+            // Auto-create target for posts created outside the web UI (e.g. via API)
+            $account = SocialAccount::where('user_id', $request->user()->id)
+                ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
+                ->where('status', 'connected')
+                ->orderByDesc('is_default')
+                ->first();
+
+            if (! $account) {
+                return back()->with('error', 'No connected LinkedIn account found. Connect one in Connections.');
+            }
+
+            $target = SocialPostTarget::create([
+                'social_post_id'         => $post->id,
+                'social_account_id'      => $account->id,
+                'provider_key'           => 'linkedin',
+                'platform_body'          => $post->post_body,
+                'platform_metadata_json' => ['visibility' => 'PUBLIC'],
+                'status'                 => 'approved',
+                'scheduled_at'           => null,
+            ]);
         }
 
         try {

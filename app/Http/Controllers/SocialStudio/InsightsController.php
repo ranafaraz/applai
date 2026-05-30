@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\SocialStudio;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SyncLinkedInAnalyticsJob;
 use App\Models\SocialAccount;
 use App\Models\SocialAnalyticsSnapshot;
 use App\Models\SocialPost;
 use App\Services\Social\LinkedInAnalyticsService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -66,5 +68,30 @@ class InsightsController extends Controller
         $hasData = $accountSummaries->isNotEmpty();
 
         return view('social-studio.insights', compact('accountSummaries', 'hasData'));
+    }
+
+    public function syncNow(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $accounts = SocialAccount::where('user_id', $user->id)
+            ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
+            ->where('status', 'connected')
+            ->get();
+
+        if ($accounts->isEmpty()) {
+            return back()->with('error', 'No connected LinkedIn accounts to sync.');
+        }
+
+        foreach ($accounts as $account) {
+            SyncLinkedInAnalyticsJob::dispatch($account->id);
+
+            SocialPost::where('user_id', $user->id)
+                ->where('status', 'published')
+                ->whereNotNull('linkedin_post_urn')
+                ->each(fn ($post) => SyncLinkedInAnalyticsJob::dispatch($account->id, $post->id));
+        }
+
+        return back()->with('success', 'Analytics sync queued. Data will appear within a minute.');
     }
 }
