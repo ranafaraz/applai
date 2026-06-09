@@ -113,4 +113,10 @@ class Contact extends Model
     {
         return trim("{$this->first_name} {$this->last_name}") ?: $this->email;
     }
+
+    public function apiDocumentLinks(): HasMany
+    {
+        return $this->hasMany(ApiDocumentLink::class, 'entity_id')
+                    ->where('entity_type', 'contact');
+    }
 }

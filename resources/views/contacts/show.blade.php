@@ -86,6 +86,7 @@
         <button @click="tab = 'timeline'" :class="tab === 'timeline' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'" class="px-4 py-2.5 text-sm font-medium transition-colors -mb-px">Timeline</button>
         <button @click="tab = 'opportunities'" :class="tab === 'opportunities' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'" class="px-4 py-2.5 text-sm font-medium transition-colors -mb-px">Opportunities</button>
         <button @click="tab = 'emails'" :class="tab === 'emails' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'" class="px-4 py-2.5 text-sm font-medium transition-colors -mb-px">Emails</button>
+        <button @click="tab = 'documents'" :class="tab === 'documents' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'" class="px-4 py-2.5 text-sm font-medium transition-colors -mb-px">Documents</button>
     </div>
 
     {{-- Timeline Tab --}}
@@ -163,6 +164,37 @@
             </table>
         @else
             <div class="p-8 text-center text-slate-400 text-sm">No emails sent to this contact.</div>
+        @endif
+    </div>
+
+    {{-- Documents Tab --}}
+    <div x-show="tab === 'documents'" x-cloak class="bg-white border border-slate-200 rounded-xl p-6">
+        @php $apiLinks = $contact->apiDocumentLinks; @endphp
+        @if($apiLinks->isEmpty())
+            <p class="text-center text-slate-400 py-8 text-sm">No documents attached.</p>
+        @else
+            <div class="space-y-2">
+                @foreach($apiLinks as $link)
+                @php $doc = $link->document; $ver = $doc?->currentVersion; @endphp
+                @if($doc)
+                <div class="flex items-center justify-between p-3 rounded-lg border border-slate-200">
+                    <div>
+                        <p class="text-sm font-medium text-slate-800">{{ $doc->name }}</p>
+                        <p class="text-xs text-slate-500">
+                            {{ ucfirst(str_replace('_', ' ', $doc->document_type ?? 'other')) }}
+                            @if($ver) &bull; {{ $ver->original_filename }} &bull; {{ number_format($ver->size_bytes / 1024, 1) }} KB @endif
+                            @if($doc->is_sensitive) &bull; <span class="text-amber-600 font-medium">Sensitive</span> @endif
+                        </p>
+                    </div>
+                    @if($ver?->public_url)
+                        <a href="{{ $ver->public_url }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 hover:underline">View</a>
+                    @else
+                        <span class="text-xs text-slate-400">Stored</span>
+                    @endif
+                </div>
+                @endif
+                @endforeach
+            </div>
         @endif
     </div>
 </div>

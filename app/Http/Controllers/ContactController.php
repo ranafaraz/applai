@@ -78,7 +78,7 @@ class ContactController extends Controller
     public function show(Request $request, int $id): View
     {
         $contact = $this->tenantQuery(Contact::class)
-            ->with(['tags', 'opportunities', 'emailMessages.emailAccount'])
+            ->with(['tags', 'opportunities', 'emailMessages.emailAccount', 'apiDocumentLinks.document.currentVersion'])
             ->findOrFail($id);
 
         $this->authorize('view', $contact);

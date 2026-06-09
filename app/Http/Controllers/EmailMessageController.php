@@ -290,7 +290,7 @@ class EmailMessageController extends Controller
     public function show(Request $request, int $id): View
     {
         $email = $this->tenantQuery(EmailMessage::class)
-            ->with(['emailAccount', 'contact', 'opportunity', 'attachments', 'apiAttachments', 'replies'])
+            ->with(['emailAccount', 'contact', 'opportunity', 'attachments', 'apiAttachments', 'apiDocumentLinks.document.currentVersion', 'replies'])
             ->findOrFail($id);
 
         $this->authorize('view', $email);

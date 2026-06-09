@@ -66,6 +66,34 @@
                 </div>
             </div>
         @endif
+        @php $apiDocLinks = $email->relationLoaded('apiDocumentLinks') ? $email->apiDocumentLinks : collect(); @endphp
+        @if($apiDocLinks->isNotEmpty())
+            <div class="pt-4 border-t border-slate-100">
+                <p class="text-sm font-semibold text-slate-700 mb-2">Linked Documents</p>
+                <div class="space-y-2">
+                    @foreach($apiDocLinks as $link)
+                        @php $doc = $link->document; $ver = $doc?->currentVersion; @endphp
+                        @if($doc)
+                        <div class="flex items-center justify-between p-3 rounded-lg border border-slate-200">
+                            <div>
+                                <p class="text-sm font-medium text-slate-800">{{ $doc->name }}</p>
+                                <p class="text-xs text-slate-500">
+                                    {{ ucfirst(str_replace('_', ' ', $doc->document_type ?? 'other')) }}
+                                    @if($ver) &bull; {{ $ver->original_filename }} &bull; {{ number_format($ver->size_bytes / 1024, 1) }} KB @endif
+                                    @if($doc->is_sensitive) &bull; <span class="text-amber-600 font-medium">Sensitive</span> @endif
+                                </p>
+                            </div>
+                            @if($ver?->public_url)
+                                <a href="{{ $ver->public_url }}" target="_blank" rel="noopener" class="text-xs text-indigo-600 hover:underline">View</a>
+                            @else
+                                <span class="text-xs text-slate-400">Stored</span>
+                            @endif
+                        </div>
+                        @endif
+                    @endforeach
+                </div>
+            </div>
+        @endif
         <div class="flex gap-3 pt-4 border-t border-slate-100">
             @if(in_array($email->status, ['draft','scheduled']))
                 <a href="{{ route('emails.edit', $email) }}" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">

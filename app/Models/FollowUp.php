@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 class FollowUp extends Model
@@ -84,6 +85,12 @@ class FollowUp extends Model
     {
         return $this->belongsToMany(ApiAttachment::class, 'api_attachment_follow_up', 'follow_up_id', 'api_attachment_id')
             ->withPivot('created_at');
+    }
+
+    public function apiDocumentLinks(): HasMany
+    {
+        return $this->hasMany(ApiDocumentLink::class, 'entity_id')
+                    ->where('entity_type', 'follow_up');
     }
 
     // -------------------------------------------------------------------------

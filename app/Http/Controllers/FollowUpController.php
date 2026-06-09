@@ -74,7 +74,7 @@ class FollowUpController extends Controller
     public function show(Request $request, int $id): View
     {
         $followUp = $this->tenantQuery(FollowUp::class)
-            ->with(['opportunity', 'contact', 'emailAccount', 'emailTemplate', 'emailMessage', 'emailSignature', 'apiAttachments'])
+            ->with(['opportunity', 'contact', 'emailAccount', 'emailTemplate', 'emailMessage', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion'])
             ->findOrFail($id);
 
         return view('follow-ups.show', compact('followUp'));

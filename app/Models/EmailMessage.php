@@ -110,6 +110,12 @@ class EmailMessage extends Model
             ->withPivot('added_by_user_id', 'created_at');
     }
 
+    public function apiDocumentLinks(): HasMany
+    {
+        return $this->hasMany(ApiDocumentLink::class, 'entity_id')
+                    ->where('entity_type', 'email_draft');
+    }
+
     /**
      * Replies / child messages in the thread.
      */
