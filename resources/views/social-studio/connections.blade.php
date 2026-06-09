@@ -2,12 +2,12 @@
 @section('title', 'Social Connections')
 
 @section('content')
-<div class="p-6 space-y-6 max-w-3xl">
+<div class="p-6 space-y-6 max-w-5xl">
 
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold text-slate-800">Social Connections</h1>
-            <p class="text-sm text-slate-500 mt-1">Connect your LinkedIn accounts through your registered developer apps.</p>
+            <p class="text-sm text-slate-500 mt-1">Connect LinkedIn profiles and WordPress sites for scheduled publishing.</p>
         </div>
         <a href="{{ route('social-studio.oauth-apps.index') }}"
            class="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition">
@@ -122,6 +122,90 @@
             </a>
         </div>
         @endforelse
+    </div>
+
+    {{-- WordPress section --}}
+    <div class="space-y-3">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center text-sm font-bold">W</div>
+            <h2 class="text-base font-semibold text-slate-800">WordPress</h2>
+        </div>
+
+        <div class="grid lg:grid-cols-[1fr_1.2fr] gap-4">
+            <form method="POST" action="{{ route('social-studio.connections.wordpress.store') }}"
+                  class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+                @csrf
+                <h3 class="text-sm font-semibold text-slate-700">Add Site</h3>
+
+                <div>
+                    <label for="wp_site_url" class="block text-xs font-medium text-slate-700 mb-1">Site URL <span class="text-red-500">*</span></label>
+                    <input type="url" id="wp_site_url" name="site_url" value="{{ old('site_url') }}" required placeholder="https://blog.example.com"
+                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+
+                <div>
+                    <label for="wp_label" class="block text-xs font-medium text-slate-700 mb-1">Label</label>
+                    <input type="text" id="wp_label" name="label" value="{{ old('label') }}" placeholder="Company Blog"
+                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+
+                <div>
+                    <label for="wp_username" class="block text-xs font-medium text-slate-700 mb-1">Username <span class="text-red-500">*</span></label>
+                    <input type="text" id="wp_username" name="username" value="{{ old('username') }}" required
+                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+
+                <div>
+                    <label for="wp_application_password" class="block text-xs font-medium text-slate-700 mb-1">Application Password <span class="text-red-500">*</span></label>
+                    <input type="password" id="wp_application_password" name="application_password" required
+                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+
+                <button type="submit"
+                        class="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                    Connect WordPress
+                </button>
+            </form>
+
+            <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
+                <h3 class="text-sm font-semibold text-slate-700">Connected Sites</h3>
+
+                @forelse($accounts->filter(fn ($account) => $account->provider?->key === 'wordpress') as $account)
+                    <div class="flex items-center justify-between gap-3 py-3 border-b border-slate-100 last:border-0">
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full flex-shrink-0 {{ $account->status === 'connected' ? 'bg-green-500' : ($account->status === 'reauthorization_required' ? 'bg-amber-400' : 'bg-slate-300') }}"></span>
+                                <p class="text-sm font-medium text-slate-800 truncate">{{ $account->display_name }}</p>
+                            </div>
+                            <a href="{{ $account->public_profile_url }}" target="_blank" class="text-xs text-indigo-600 hover:underline truncate block mt-0.5">
+                                {{ $account->public_profile_url }}
+                            </a>
+                            <p class="text-xs text-slate-400 mt-0.5">
+                                {{ ucfirst(str_replace('_', ' ', $account->status)) }}
+                                @if($account->last_verified_at)
+                                    · verified {{ $account->last_verified_at->diffForHumans() }}
+                                @endif
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <form method="POST" action="{{ route('social-studio.connections.verify', $account->id) }}">
+                                @csrf @method('PATCH')
+                                <button type="submit" class="text-xs text-slate-500 hover:text-slate-700 underline">Verify</button>
+                            </form>
+                            <form method="POST" action="{{ route('social-studio.connections.disconnect', $account->id) }}"
+                                  onsubmit="return confirm('Disconnect {{ addslashes($account->display_name) }}?')">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="text-xs text-red-500 hover:text-red-700 underline">Disconnect</button>
+                            </form>
+                        </div>
+                    </div>
+                @empty
+                    <div class="border border-dashed border-slate-300 rounded-lg p-6 text-center">
+                        <p class="text-sm font-medium text-slate-500">No WordPress sites connected.</p>
+                    </div>
+                @endforelse
+            </div>
+        </div>
     </div>
 
     {{-- Coming-soon platforms --}}

@@ -8,6 +8,7 @@ use App\Models\SocialOAuthApp;
 use App\Models\SocialProvider;
 use App\Services\Social\LinkedInOAuthException;
 use App\Services\Social\LinkedInOAuthService;
+use App\Services\Social\WordPressClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -15,7 +16,10 @@ use Illuminate\View\View;
 
 class ConnectionController extends Controller
 {
-    public function __construct(private LinkedInOAuthService $oauth) {}
+    public function __construct(
+        private LinkedInOAuthService $oauth,
+        private WordPressClient $wordPress,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -35,6 +39,59 @@ class ConnectionController extends Controller
             ->get();
 
         return view('social-studio.connections', compact('providers', 'oauthApps', 'accounts'));
+    }
+
+    public function storeWordPress(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'site_url' => ['required', 'url', 'max:500'],
+            'label' => ['nullable', 'string', 'max:255'],
+            'username' => ['required', 'string', 'max:255'],
+            'application_password' => ['required', 'string', 'max:255'],
+        ]);
+
+        $user = $request->user();
+        $provider = SocialProvider::where('key', 'wordpress')->firstOrFail();
+        $siteUrl = rtrim($data['site_url'], '/');
+
+        $account = SocialAccount::create([
+            'tenant_id' => $user->tenant_id,
+            'user_id' => $user->id,
+            'provider_id' => $provider->id,
+            'provider_account_urn' => $siteUrl,
+            'display_name' => $data['label'] ?: parse_url($siteUrl, PHP_URL_HOST),
+            'public_profile_url' => $siteUrl,
+            'access_token_encrypted' => $data['application_password'],
+            'status' => 'disconnected',
+            'capabilities' => ['html', 'image', 'featured_image'],
+            'metadata_json' => [
+                'site_url' => $siteUrl,
+                'api_base' => "{$siteUrl}/wp-json/wp/v2",
+                'username' => $data['username'],
+            ],
+        ]);
+
+        try {
+            $identity = $this->wordPress->verify($account);
+            $account->update([
+                'status' => 'connected',
+                'last_verified_at' => now(),
+                'display_name' => $data['label'] ?: (($identity['name'] ?? null) ? "{$identity['name']} ({$siteUrl})" : $account->display_name),
+                'metadata_json' => array_merge($account->metadata_json ?? [], [
+                    'wp_user_id' => $identity['id'] ?? null,
+                    'wp_user_name' => $identity['name'] ?? null,
+                ]),
+            ]);
+
+            return redirect()->route('social-studio.connections')
+                ->with('success', "WordPress site connected: {$account->fresh()->display_name}.");
+        } catch (\Throwable $e) {
+            $account->update(['status' => 'error']);
+            report($e);
+
+            return redirect()->route('social-studio.connections')
+                ->with('error', 'WordPress connection failed: ' . $e->getMessage());
+        }
     }
 
     /** Start OAuth for a specific app config. */
@@ -103,11 +160,21 @@ class ConnectionController extends Controller
 
     public function disconnect(Request $request, int $id): RedirectResponse
     {
-        $account = SocialAccount::where('user_id', $request->user()->id)->findOrFail($id);
-        $this->oauth->disconnect($account);
+        $account = SocialAccount::where('user_id', $request->user()->id)
+            ->with('provider')
+            ->findOrFail($id);
+
+        if ($account->provider?->key === 'wordpress') {
+            $account->update([
+                'status' => 'disconnected',
+                'access_token_encrypted' => null,
+            ]);
+        } else {
+            $this->oauth->disconnect($account);
+        }
 
         return redirect()->route('social-studio.connections')
-            ->with('success', 'LinkedIn account disconnected.');
+            ->with('success', ($account->provider?->name ?? 'Social account') . ' disconnected.');
     }
 
     public function setDefault(Request $request, int $id): RedirectResponse
@@ -129,17 +196,29 @@ class ConnectionController extends Controller
         }
 
         try {
-            $identity = $this->oauth->resolveMemberIdentity($account->access_token_encrypted);
-            $account->update([
-                'status'               => 'connected',
-                'last_verified_at'     => now(),
-                'display_name'         => $identity['display_name'],
-                'provider_account_urn' => $identity['urn'],
-            ]);
+            if ($account->provider->key === 'wordpress') {
+                $identity = $this->wordPress->verify($account);
+                $account->update([
+                    'status' => 'connected',
+                    'last_verified_at' => now(),
+                    'metadata_json' => array_merge($account->metadata_json ?? [], [
+                        'wp_user_id' => $identity['id'] ?? null,
+                        'wp_user_name' => $identity['name'] ?? null,
+                    ]),
+                ]);
+            } else {
+                $identity = $this->oauth->resolveMemberIdentity($account->access_token_encrypted);
+                $account->update([
+                    'status'               => 'connected',
+                    'last_verified_at'     => now(),
+                    'display_name'         => $identity['display_name'],
+                    'provider_account_urn' => $identity['urn'],
+                ]);
+            }
             return back()->with('success', 'Connection verified successfully.');
         } catch (\Throwable) {
             $account->update(['status' => 'reauthorization_required']);
-            return back()->with('error', 'Token verification failed. Please reconnect LinkedIn.');
+            return back()->with('error', 'Connection verification failed. Please check the credentials and reconnect.');
         }
     }
 }

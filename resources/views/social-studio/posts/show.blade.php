@@ -55,7 +55,7 @@
             </div>
         </div>
 
-        <div class="text-sm text-slate-700 whitespace-pre-wrap border border-slate-100 rounded-lg p-4 bg-slate-50">{{ $post->post_body }}</div>
+        <div class="prose prose-sm max-w-none text-slate-700 border border-slate-100 rounded-lg p-4 bg-slate-50">{!! $post->post_body !!}</div>
 
         @if($post->hashtagString())
             <p class="text-sm text-blue-600">{{ $post->hashtagString() }}</p>
@@ -147,7 +147,7 @@
 
             @if($post->isApproved())
                 <form method="POST" action="{{ route('social-studio.posts.publish-now', $post->id) }}"
-                      onsubmit="return confirm('Publish this post to LinkedIn right now? This cannot be undone.')">
+                      onsubmit="return confirm('Publish this post to all selected targets right now? This cannot be undone.')">
                     @csrf
                     <input type="hidden" name="confirm" value="1">
                     <button type="submit" class="text-sm bg-blue-700 hover:bg-blue-800 text-white font-medium px-4 py-2 rounded-lg transition">
@@ -184,6 +184,9 @@
                     <span class="text-xs text-red-500" title="{{ $target->error_message }}">Error</span>
                 @endif
                 @if($target->remote_post_id && $target->remote_post_id !== 'unknown')
+                    @if($target->remote_post_url)
+                        <a href="{{ $target->remote_post_url }}" target="_blank" class="text-xs text-indigo-600 hover:underline">Open</a>
+                    @endif
                     <span class="text-xs text-slate-400">ID: {{ $target->remote_post_id }}</span>
                 @endif
             </div>

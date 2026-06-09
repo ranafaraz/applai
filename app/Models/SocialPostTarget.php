@@ -13,6 +13,7 @@ class SocialPostTarget extends Model
         'social_post_id', 'social_account_id', 'provider_key',
         'platform_body', 'platform_metadata_json',
         'status', 'scheduled_at',
+        'locked_at',
         'remote_post_id', 'remote_post_url', 'published_at',
         'error_code', 'error_message', 'idempotency_key',
     ];
@@ -22,6 +23,7 @@ class SocialPostTarget extends Model
         return [
             'platform_metadata_json' => 'array',
             'scheduled_at'           => 'datetime',
+            'locked_at'              => 'datetime',
             'published_at'           => 'datetime',
         ];
     }

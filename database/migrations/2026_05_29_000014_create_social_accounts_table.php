@@ -25,7 +25,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['tenant_id', 'user_id']);
-            $table->unique(['user_id', 'provider_id']);
+            $table->index(['user_id', 'provider_id']);
         });
     }
 

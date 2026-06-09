@@ -103,8 +103,8 @@ return new class extends Migration
                 $table->json('raw_provider_response')->nullable();
                 $table->timestamps();
 
-                $table->index(['social_account_id', 'analytics_scope', 'collected_at']);
-                $table->index(['social_post_id', 'metric_name']);
+                $table->index(['social_account_id', 'analytics_scope', 'collected_at'], 'sas_account_scope_collected_idx');
+                $table->index(['social_post_id', 'metric_name'], 'sas_post_metric_idx');
             });
         }
 

@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\SocialPostTarget;
-use App\Services\Social\LinkedInPublishService;
+use App\Services\Social\SocialPublisherService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -12,7 +12,7 @@ class PublishDueSocialPostsCommand extends Command
     protected $signature   = 'social:publish-due-posts';
     protected $description = 'Publish scheduled social posts that are due and approved';
 
-    public function handle(LinkedInPublishService $publisher): int
+    public function handle(SocialPublisherService $publisher): int
     {
         // Only targets that are: scheduled, due now, and whose parent post is approved
         $due = SocialPostTarget::where('status', 'scheduled')
@@ -40,7 +40,7 @@ class PublishDueSocialPostsCommand extends Command
 
             try {
                 $result = $publisher->publish($target);
-                $this->info("  Published target #{$target->id} → {$result->status}");
+                $this->info("  Published target #{$target->id} ({$target->provider_key}) → {$result->status}");
             } catch (\Throwable $e) {
                 Log::error("social:publish-due-posts failed for target #{$target->id}", [
                     'error' => $e->getMessage(),
