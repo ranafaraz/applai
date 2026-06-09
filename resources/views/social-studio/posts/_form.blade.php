@@ -2,12 +2,7 @@
     $isEdit = (bool) $post;
     $targets = $post?->targets ?? collect();
     $targetByAccount = $targets->keyBy('social_account_id');
-    $defaultSelected = $isEdit
-        ? $targets->pluck('social_account_id')->all()
-        : $accounts->filter(fn ($account) => $account->provider?->key === 'linkedin' && $account->is_default)->pluck('id')->all();
-    if (! $isEdit && empty($defaultSelected)) {
-        $defaultSelected = $accounts->filter(fn ($account) => $account->provider?->key === 'linkedin')->take(1)->pluck('id')->all();
-    }
+    $defaultSelected = $isEdit ? $targets->pluck('social_account_id')->all() : [];
     $selectedAccounts = collect(old('target_accounts', $defaultSelected))->map(fn ($id) => (int) $id)->all();
     $featuredAssetId = old('featured_asset_id', $post?->mediaAssets?->first(fn ($asset) => (bool) $asset->pivot?->is_featured)?->id);
     $selectedTz = old('timezone_display', $post->timezone_display ?? 'Asia/Karachi');
@@ -40,7 +35,12 @@
     @endif
 
     <div class="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
-        <h2 class="text-sm font-semibold text-slate-700">Post Details</h2>
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <h2 class="text-sm font-semibold text-slate-700">Content Workspace</h2>
+                <p class="text-xs text-slate-400 mt-0.5">Write once, then customize per selected channel below.</p>
+            </div>
+        </div>
 
         <div class="grid md:grid-cols-2 gap-4">
             <div>
@@ -76,8 +76,25 @@
 
         <div>
             <label for="post_body" class="block text-xs font-medium text-slate-700 mb-1">Content <span class="text-red-500">*</span></label>
-            <textarea id="post_body" name="post_body" rows="14" required
-                      class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">{{ old('post_body', $post->post_body ?? '') }}</textarea>
+            <div class="border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500">
+                <div class="flex items-center gap-1 px-2 py-1.5 bg-slate-50 border-b border-slate-200">
+                    <button type="button" data-editor-command="bold" title="Bold" class="w-8 h-8 rounded hover:bg-slate-200 text-slate-700 text-sm font-bold">B</button>
+                    <button type="button" data-editor-command="italic" title="Italic" class="w-8 h-8 rounded hover:bg-slate-200 text-slate-700 text-sm italic">I</button>
+                    <button type="button" data-editor-command="underline" title="Underline" class="w-8 h-8 rounded hover:bg-slate-200 text-slate-700 text-sm underline">U</button>
+                    <div class="w-px h-5 bg-slate-300 mx-1"></div>
+                    <button type="button" data-editor-command="insertUnorderedList" title="Bulleted list" class="w-8 h-8 rounded hover:bg-slate-200 text-slate-700 text-sm">•</button>
+                    <button type="button" data-editor-command="insertOrderedList" title="Numbered list" class="w-8 h-8 rounded hover:bg-slate-200 text-slate-700 text-sm">1.</button>
+                    <div class="w-px h-5 bg-slate-300 mx-1"></div>
+                    <button type="button" data-editor-block="h2" title="Heading" class="px-2 h-8 rounded hover:bg-slate-200 text-slate-700 text-xs font-semibold">H2</button>
+                    <button type="button" data-editor-block="p" title="Paragraph" class="px-2 h-8 rounded hover:bg-slate-200 text-slate-700 text-xs">P</button>
+                    <button type="button" data-editor-link title="Link" class="px-2 h-8 rounded hover:bg-slate-200 text-slate-700 text-xs">Link</button>
+                    <button type="button" data-editor-command="removeFormat" title="Clear formatting" class="ml-auto px-2 h-8 rounded hover:bg-slate-200 text-slate-500 text-xs">Clear</button>
+                </div>
+                <div id="post_body_editor" contenteditable="true" data-rich-editor
+                     class="min-h-[360px] max-h-[620px] overflow-y-auto px-4 py-3 text-sm leading-6 outline-none bg-white prose max-w-none"
+                     data-placeholder="Write content for LinkedIn, WordPress, and other connected channels...">{!! old('post_body', $post->post_body ?? '') !!}</div>
+            </div>
+            <textarea id="post_body" name="post_body" class="hidden">{{ old('post_body', $post->post_body ?? '') }}</textarea>
         </div>
 
         <div class="grid md:grid-cols-[1fr_auto] gap-3 items-end">
@@ -121,7 +138,10 @@
     </div>
 
     <div class="bg-white rounded-lg border border-slate-200 p-5 space-y-4">
-        <h2 class="text-sm font-semibold text-slate-700">Publish Targets</h2>
+        <div>
+            <h2 class="text-sm font-semibold text-slate-700">Publish Targets</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Select any connected channel. WordPress sites can use their own title, body, slug, status, and featured image.</p>
+        </div>
 
         @forelse($accounts as $account)
             @php
@@ -130,12 +150,17 @@
                 $meta = old("target_meta.{$account->id}", $target?->platform_metadata_json ?? []);
                 $checked = in_array($account->id, $selectedAccounts, true);
             @endphp
-            <div class="border border-slate-200 rounded-lg p-4 space-y-3" data-target-panel>
-                <label class="flex items-center gap-3">
+            <div class="border border-slate-200 rounded-lg p-4 space-y-3 {{ $checked ? 'ring-1 ring-indigo-200 border-indigo-300' : '' }}" data-target-panel>
+                <label class="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" name="target_accounts[]" value="{{ $account->id }}" data-target-toggle {{ $checked ? 'checked' : '' }}
                            class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                    <span class="text-sm font-medium text-slate-800">{{ $account->display_name }}</span>
-                    <span class="text-xs rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">{{ $account->provider?->name }}</span>
+                    <span class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold {{ $providerKey === 'linkedin' ? 'bg-blue-100 text-blue-700' : ($providerKey === 'wordpress' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600') }}">
+                        {{ $providerKey === 'wordpress' ? 'W' : strtoupper(substr($account->provider?->name ?? 'S', 0, 1)) }}
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-medium text-slate-800 truncate">{{ $account->display_name }}</span>
+                        <span class="block text-xs text-slate-400">{{ $account->provider?->name }}</span>
+                    </span>
                 </label>
 
                 <div class="space-y-3 {{ $checked ? '' : 'hidden' }}" data-target-fields>
@@ -250,11 +275,12 @@
 </form>
 
 @push('scripts')
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const articleField = document.getElementById('article_url_field');
     const postType = document.getElementById('post_type');
+    const editor = document.querySelector('[data-rich-editor]');
+    const textarea = document.getElementById('post_body');
 
     function toggleArticleField() {
         if (articleField && postType) {
@@ -267,23 +293,47 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.querySelectorAll('[data-target-toggle]').forEach(function (toggle) {
         toggle.addEventListener('change', function () {
-            const fields = toggle.closest('[data-target-panel]').querySelector('[data-target-fields]');
+            const panel = toggle.closest('[data-target-panel]');
+            const fields = panel.querySelector('[data-target-fields]');
             fields?.classList.toggle('hidden', !toggle.checked);
+            panel.classList.toggle('ring-1', toggle.checked);
+            panel.classList.toggle('ring-indigo-200', toggle.checked);
+            panel.classList.toggle('border-indigo-300', toggle.checked);
         });
     });
 
-    if (window.tinymce) {
-        tinymce.init({
-            selector: '#post_body',
-            height: 460,
-            menubar: false,
-            plugins: 'autolink link lists image table code autoresize wordcount',
-            toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link table | removeformat code',
-            branding: false,
-            promotion: false,
-            content_style: 'body{font-family:Inter,Arial,sans-serif;font-size:14px;line-height:1.6} img{max-width:100%;height:auto;}',
-        });
+    function syncEditor() {
+        if (editor && textarea) {
+            textarea.value = editor.innerHTML.trim();
+        }
     }
+
+    document.querySelectorAll('[data-editor-command]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            editor?.focus();
+            document.execCommand(button.dataset.editorCommand, false, null);
+            syncEditor();
+        });
+    });
+
+    document.querySelectorAll('[data-editor-block]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            editor?.focus();
+            document.execCommand('formatBlock', false, button.dataset.editorBlock);
+            syncEditor();
+        });
+    });
+
+    document.querySelector('[data-editor-link]')?.addEventListener('click', function () {
+        const url = window.prompt('Paste URL');
+        if (! url) return;
+        editor?.focus();
+        document.execCommand('createLink', false, url);
+        syncEditor();
+    });
+
+    editor?.addEventListener('input', syncEditor);
+    editor?.addEventListener('blur', syncEditor);
 
     document.querySelector('[data-insert-image]')?.addEventListener('click', function () {
         const select = document.getElementById('insert_asset_id');
@@ -297,19 +347,16 @@ document.addEventListener('DOMContentLoaded', function () {
         const alt = option.dataset.alt || '';
         const html = '<p><img src="' + url + '" data-social-asset-id="' + option.value + '" alt="' + alt.replace(/"/g, '&quot;') + '"></p>';
 
-        if (window.tinymce?.get('post_body')) {
-            tinymce.get('post_body').insertContent(html);
-        } else {
-            const textarea = document.getElementById('post_body');
-            textarea.value += "\n" + html;
-        }
+        editor?.focus();
+        document.execCommand('insertHTML', false, html);
+        syncEditor();
     });
 
     document.querySelector('[data-social-post-form]')?.addEventListener('submit', function () {
-        if (window.tinymce) {
-            tinymce.triggerSave();
-        }
+        syncEditor();
     });
+
+    syncEditor();
 });
 </script>
 @endpush

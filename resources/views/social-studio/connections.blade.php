@@ -2,21 +2,23 @@
 @section('title', 'Social Connections')
 
 @section('content')
-<div class="p-6 space-y-6 max-w-5xl">
+<div class="p-6 space-y-6 max-w-6xl" data-connections-page>
 
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">Social Connections</h1>
-            <p class="text-sm text-slate-500 mt-1">Connect LinkedIn profiles and WordPress sites for scheduled publishing.</p>
+            <h1 class="text-2xl font-bold text-slate-800">Connections</h1>
+            <p class="text-sm text-slate-500 mt-1">Connect channels once, then use them as publish targets in Content.</p>
         </div>
-        <a href="{{ route('social-studio.oauth-apps.index') }}"
-           class="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-            Manage Apps
-        </a>
+        <div class="flex gap-2">
+            <a href="{{ route('social-studio.oauth-apps.index') }}"
+               class="inline-flex items-center text-sm text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 px-3 py-2 rounded-lg transition">
+                LinkedIn Apps
+            </a>
+            <button type="button" data-open-wp-modal
+                    class="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                Add WordPress Site
+            </button>
+        </div>
     </div>
 
     @if(session('success'))
@@ -26,207 +28,181 @@
         <div class="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-4 py-3">{{ session('error') }}</div>
     @endif
 
-    {{-- LinkedIn section --}}
-    <div class="space-y-3">
-        <div class="flex items-center gap-3">
-            <svg class="w-5 h-5 text-blue-700 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
-            </svg>
-            <h2 class="text-base font-semibold text-slate-800">LinkedIn</h2>
-        </div>
+    @php
+        $linkedInApps = $oauthApps->where('provider_key', 'linkedin');
+        $wordpressAccounts = $accounts->filter(fn ($account) => $account->provider?->key === 'wordpress');
+        $otherProviders = $providers->whereNotIn('key', ['linkedin', 'wordpress']);
+    @endphp
 
-        @forelse($oauthApps->where('provider_key', 'linkedin') as $app)
-        <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
-            {{-- App header --}}
-            <div class="flex items-start justify-between gap-3">
+    <div class="grid xl:grid-cols-2 gap-5">
+        <section class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                 <div>
-                    <div class="flex items-center gap-2">
-                        <p class="text-sm font-semibold text-slate-800">{{ $app->label }}</p>
-                        @if($app->is_default)
-                            <span class="text-[11px] font-semibold bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5">Default App</span>
-                        @endif
-                    </div>
-                    <p class="text-xs text-slate-400 mt-0.5 font-mono">{{ $app->client_id }}</p>
+                    <h2 class="text-sm font-semibold text-slate-800">LinkedIn</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Profiles connected through your LinkedIn developer apps.</p>
                 </div>
-                <a href="{{ route('social-studio.connections.connect', ['app_id' => $app->id]) }}"
-                   class="flex-shrink-0 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    Add Account
-                </a>
+                @if($linkedInApps->isNotEmpty())
+                    <a href="{{ route('social-studio.connections.connect', ['app_id' => $linkedInApps->first()->id]) }}"
+                       class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium px-3 py-1.5 rounded-lg transition">Add Profile</a>
+                @endif
             </div>
 
-            {{-- Connected accounts --}}
-            @if($app->accounts->count())
-            <div class="border-t border-slate-100 pt-3 space-y-2">
-                @foreach($app->accounts as $account)
-                <div class="flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="w-2 h-2 rounded-full flex-shrink-0 {{ $account->status === 'connected' ? 'bg-green-500' : ($account->status === 'reauthorization_required' ? 'bg-amber-400' : 'bg-slate-300') }}"></span>
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-sm text-slate-800 font-medium truncate">{{ $account->display_name }}</span>
-                                @if($account->is_default)
-                                    <span class="text-[10px] font-semibold bg-green-100 text-green-700 rounded-full px-1.5 py-0.5 flex-shrink-0">Default</span>
-                                @endif
+            <div class="divide-y divide-slate-100">
+                @forelse($linkedInApps as $app)
+                    <div class="px-5 py-4 space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-medium text-slate-800">{{ $app->label }}</p>
+                                <p class="text-xs text-slate-400 font-mono mt-0.5">{{ $app->client_id }}</p>
                             </div>
-                            <p class="text-xs @if($account->status === 'connected') text-green-600 @elseif($account->status === 'reauthorization_required') text-amber-600 @else text-slate-400 @endif">
-                                @if($account->status === 'connected') Connected
-                                @elseif($account->status === 'reauthorization_required') Reauth required
-                                @else Disconnected
-                                @endif
-                                @if($account->last_verified_at)
-                                    · verified {{ $account->last_verified_at->diffForHumans() }}
-                                @endif
-                            </p>
+                            @if($app->is_default)
+                                <span class="text-[11px] font-semibold bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5">Default App</span>
+                            @endif
                         </div>
-                    </div>
 
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                        @if(! $account->is_default)
-                        <form method="POST" action="{{ route('social-studio.connections.set-default', $account->id) }}">
-                            @csrf @method('PATCH')
-                            <button type="submit" class="text-xs text-slate-500 hover:text-indigo-600 underline">Set default</button>
-                        </form>
-                        @endif
-                        <form method="POST" action="{{ route('social-studio.connections.verify', $account->id) }}">
-                            @csrf @method('PATCH')
-                            <button type="submit" class="text-xs text-slate-500 hover:text-slate-700 underline">Verify</button>
-                        </form>
-                        <form method="POST" action="{{ route('social-studio.connections.disconnect', $account->id) }}"
-                              onsubmit="return confirm('Disconnect {{ addslashes($account->display_name) }}?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="text-xs text-red-500 hover:text-red-700 underline">Disconnect</button>
-                        </form>
-                    </div>
-                </div>
-                @endforeach
-            </div>
-            @else
-            <div class="border-t border-slate-100 pt-3">
-                <p class="text-xs text-slate-400">No accounts connected yet. Click <strong>Add Account</strong> to start OAuth.</p>
-            </div>
-            @endif
-        </div>
-        @empty
-        <div class="bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center">
-            <svg class="w-10 h-10 mx-auto mb-3 text-slate-300" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 3a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14m-.5 15.5v-5.3a3.26 3.26 0 00-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 011.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 001.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 00-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
-            </svg>
-            <p class="text-sm font-medium text-slate-500">No LinkedIn apps configured yet.</p>
-            <p class="text-xs text-slate-400 mt-1">Add your LinkedIn Developer App credentials first.</p>
-            <a href="{{ route('social-studio.oauth-apps.create') }}"
-               class="mt-3 inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-                Add LinkedIn App
-            </a>
-        </div>
-        @endforelse
-    </div>
-
-    {{-- WordPress section --}}
-    <div class="space-y-3">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center text-sm font-bold">W</div>
-            <h2 class="text-base font-semibold text-slate-800">WordPress</h2>
-        </div>
-
-        <div class="grid lg:grid-cols-[1fr_1.2fr] gap-4">
-            <form method="POST" action="{{ route('social-studio.connections.wordpress.store') }}"
-                  class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-                @csrf
-                <h3 class="text-sm font-semibold text-slate-700">Add Site</h3>
-
-                <div>
-                    <label for="wp_site_url" class="block text-xs font-medium text-slate-700 mb-1">Site URL <span class="text-red-500">*</span></label>
-                    <input type="url" id="wp_site_url" name="site_url" value="{{ old('site_url') }}" required placeholder="https://blog.example.com"
-                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
-                </div>
-
-                <div>
-                    <label for="wp_label" class="block text-xs font-medium text-slate-700 mb-1">Label</label>
-                    <input type="text" id="wp_label" name="label" value="{{ old('label') }}" placeholder="Company Blog"
-                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
-                </div>
-
-                <div>
-                    <label for="wp_username" class="block text-xs font-medium text-slate-700 mb-1">Username <span class="text-red-500">*</span></label>
-                    <input type="text" id="wp_username" name="username" value="{{ old('username') }}" required
-                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
-                </div>
-
-                <div>
-                    <label for="wp_application_password" class="block text-xs font-medium text-slate-700 mb-1">Application Password <span class="text-red-500">*</span></label>
-                    <input type="password" id="wp_application_password" name="application_password" required
-                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
-                </div>
-
-                <button type="submit"
-                        class="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-                    Connect WordPress
-                </button>
-            </form>
-
-            <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
-                <h3 class="text-sm font-semibold text-slate-700">Connected Sites</h3>
-
-                @forelse($accounts->filter(fn ($account) => $account->provider?->key === 'wordpress') as $account)
-                    <div class="flex items-center justify-between gap-3 py-3 border-b border-slate-100 last:border-0">
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full flex-shrink-0 {{ $account->status === 'connected' ? 'bg-green-500' : ($account->status === 'reauthorization_required' ? 'bg-amber-400' : 'bg-slate-300') }}"></span>
-                                <p class="text-sm font-medium text-slate-800 truncate">{{ $account->display_name }}</p>
+                        @forelse($app->accounts as $account)
+                            @include('social-studio.partials.connection-row', ['account' => $account])
+                        @empty
+                            <div class="border border-dashed border-slate-300 rounded-lg p-4 text-sm text-slate-500">
+                                No profiles connected for this app.
                             </div>
-                            <a href="{{ $account->public_profile_url }}" target="_blank" class="text-xs text-indigo-600 hover:underline truncate block mt-0.5">
-                                {{ $account->public_profile_url }}
-                            </a>
-                            <p class="text-xs text-slate-400 mt-0.5">
-                                {{ ucfirst(str_replace('_', ' ', $account->status)) }}
-                                @if($account->last_verified_at)
-                                    · verified {{ $account->last_verified_at->diffForHumans() }}
-                                @endif
-                            </p>
-                        </div>
-                        <div class="flex items-center gap-2 flex-shrink-0">
-                            <form method="POST" action="{{ route('social-studio.connections.verify', $account->id) }}">
-                                @csrf @method('PATCH')
-                                <button type="submit" class="text-xs text-slate-500 hover:text-slate-700 underline">Verify</button>
-                            </form>
-                            <form method="POST" action="{{ route('social-studio.connections.disconnect', $account->id) }}"
-                                  onsubmit="return confirm('Disconnect {{ addslashes($account->display_name) }}?')">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="text-xs text-red-500 hover:text-red-700 underline">Disconnect</button>
-                            </form>
-                        </div>
+                        @endforelse
                     </div>
                 @empty
-                    <div class="border border-dashed border-slate-300 rounded-lg p-6 text-center">
-                        <p class="text-sm font-medium text-slate-500">No WordPress sites connected.</p>
+                    <div class="px-5 py-10 text-center">
+                        <p class="text-sm text-slate-500">No LinkedIn app configured yet.</p>
+                        <a href="{{ route('social-studio.oauth-apps.create') }}"
+                           class="mt-3 inline-flex bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                            Add LinkedIn App
+                        </a>
                     </div>
                 @endforelse
             </div>
-        </div>
+        </section>
+
+        <section class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                <div>
+                    <h2 class="text-sm font-semibold text-slate-800">WordPress</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Sites connected with WordPress application passwords.</p>
+                </div>
+                <button type="button" data-open-wp-modal
+                        class="text-xs bg-slate-900 hover:bg-slate-800 text-white font-medium px-3 py-1.5 rounded-lg transition">
+                    Add Site
+                </button>
+            </div>
+
+            <div class="divide-y divide-slate-100">
+                @forelse($wordpressAccounts as $account)
+                    <div class="px-5 py-4">
+                        @include('social-studio.partials.connection-row', ['account' => $account])
+                    </div>
+                @empty
+                    <div class="px-5 py-10 text-center">
+                        <p class="text-sm text-slate-500">No WordPress sites connected yet.</p>
+                        <button type="button" data-open-wp-modal class="mt-3 inline-flex text-sm text-indigo-600 hover:underline">Connect a site</button>
+                    </div>
+                @endforelse
+            </div>
+        </section>
     </div>
 
-    {{-- Coming-soon platforms --}}
-    @foreach($providers->where('status', 'coming_soon') as $provider)
-    <div class="bg-white rounded-xl border border-slate-200 p-5 opacity-60">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-                    </svg>
+    <section class="bg-white rounded-lg border border-slate-200 p-5">
+        <h2 class="text-sm font-semibold text-slate-800 mb-3">Other Channels</h2>
+        <div class="grid md:grid-cols-3 lg:grid-cols-5 gap-3">
+            @foreach($otherProviders as $provider)
+                <div class="border border-slate-200 rounded-lg p-3 {{ $provider->status === 'enabled' ? '' : 'opacity-60' }}">
+                    <p class="text-sm font-medium text-slate-800">{{ $provider->name }}</p>
+                    <p class="text-xs text-slate-400 mt-1">{{ str_replace('_', ' ', ucfirst($provider->status)) }}</p>
                 </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-800">{{ $provider->name }}</p>
-                    <p class="text-xs text-slate-400 mt-0.5">Coming soon</p>
+            @endforeach
+        </div>
+    </section>
+
+    <div data-wp-modal class="hidden fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-slate-900/50" data-close-wp-modal></div>
+        <div class="relative mx-auto mt-16 w-full max-w-lg px-4">
+            <form method="POST" action="{{ route('social-studio.connections.wordpress.store') }}"
+                  class="bg-white rounded-lg shadow-xl border border-slate-200">
+                @csrf
+                <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-800">Connect WordPress Site</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Use a WordPress application password from the site user profile.</p>
+                    </div>
+                    <button type="button" data-close-wp-modal class="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
                 </div>
-            </div>
-            <span class="text-xs bg-slate-100 text-slate-500 rounded-full px-3 py-1 font-medium">Coming Soon</span>
+
+                <div class="p-5 space-y-4">
+                    <div>
+                        <label for="wp_site_url" class="block text-xs font-medium text-slate-700 mb-1">Site URL <span class="text-red-500">*</span></label>
+                        <input type="url" id="wp_site_url" name="site_url" value="{{ old('site_url') }}" required placeholder="https://blog.example.com"
+                               class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label for="wp_label" class="block text-xs font-medium text-slate-700 mb-1">Display Name</label>
+                        <input type="text" id="wp_label" name="label" value="{{ old('label') }}" placeholder="Company Blog"
+                               class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="wp_username" class="block text-xs font-medium text-slate-700 mb-1">Username <span class="text-red-500">*</span></label>
+                            <input type="text" id="wp_username" name="username" value="{{ old('username') }}" required
+                                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label for="wp_application_password" class="block text-xs font-medium text-slate-700 mb-1">Application Password <span class="text-red-500">*</span></label>
+                            <input type="password" id="wp_application_password" name="application_password" required
+                                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50">
+                    <button type="button" data-close-wp-modal class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-sm font-medium px-4 py-2 rounded-lg transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                        Connect Site
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
-    @endforeach
 
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modal = document.querySelector('[data-wp-modal]');
+    const openButtons = document.querySelectorAll('[data-open-wp-modal]');
+    const closeButtons = document.querySelectorAll('[data-close-wp-modal]');
+
+    function openModal() {
+        modal?.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+
+    function closeModal() {
+        modal?.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+
+    openButtons.forEach(button => button.addEventListener('click', openModal));
+    closeButtons.forEach(button => button.addEventListener('click', closeModal));
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeModal();
+    });
+
+    @if($errors->has('site_url') || $errors->has('username') || $errors->has('application_password'))
+        openModal();
+    @endif
+});
+</script>
+@endpush
 @endsection

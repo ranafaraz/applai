@@ -1,17 +1,20 @@
 @extends('layouts.app')
-@section('title', 'Posts')
+@section('title', 'Content')
 
 @section('content')
 <div class="p-6 space-y-5">
 
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-slate-800">Posts</h1>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Content</h1>
+            <p class="text-sm text-slate-500 mt-1">Draft, schedule, and publish across selected social channels.</p>
+        </div>
         <a href="{{ route('social-studio.posts.create') }}"
            class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
-            New Draft
+            New Content
         </a>
     </div>
 

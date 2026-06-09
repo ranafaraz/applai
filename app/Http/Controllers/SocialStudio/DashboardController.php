@@ -25,10 +25,14 @@ class DashboardController extends Controller
             ->latest('published_at')
             ->first();
 
-        $linkedInAccount = SocialAccount::where('user_id', $user->id)
-            ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
-            ->orderByDesc('is_default')
-            ->first();
+        $connectedAccounts = SocialAccount::where('user_id', $user->id)
+            ->with('provider')
+            ->orderBy('status')
+            ->orderBy('display_name')
+            ->get();
+
+        $connectedCount = $connectedAccounts->where('status', 'connected')->count();
+        $connectionGroups = $connectedAccounts->groupBy(fn (SocialAccount $account) => $account->provider?->key ?? 'unknown');
 
         $providers = SocialProvider::all();
 
@@ -40,7 +44,8 @@ class DashboardController extends Controller
 
         return view('social-studio.dashboard', compact(
             'draftsCount', 'scheduledCount', 'failedCount',
-            'lastPublished', 'linkedInAccount', 'providers', 'recentPublished'
+            'lastPublished', 'providers', 'recentPublished',
+            'connectedAccounts', 'connectedCount', 'connectionGroups'
         ));
     }
 }
