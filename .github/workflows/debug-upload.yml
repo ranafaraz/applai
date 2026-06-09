@@ -1,0 +1,82 @@
+name: Debug Upload Endpoints
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run upload diagnostics via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /var/www/crm.dexdevs.com
+
+            echo "=== Create temp API client with full scopes ==="
+            {
+              printf '%s\n' '<?php'
+              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
+              printf '%s\n' 'require "vendor/autoload.php";'
+              printf '%s\n' '$app = require "bootstrap/app.php";'
+              printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
+              printf '%s\n' '$user = \App\Models\User::where("email","ranafarazahmed@gmail.com")->first();'
+              printf '%s\n' '$client = \App\Models\ApiClient::create(["user_id"=>$user->id,"name"=>"DEBUG-TEMP","source_type"=>"custom_gpt","scopes"=>["documents:read","documents:write","attachments:read","attachments:write","drafts:read","drafts:create","followups:read","followups:create","opportunities:read","contacts:read"],"is_active"=>true]);'
+              printf '%s\n' '["raw"=>$raw,"hash"=>$hash,"prefix"=>$prefix] = \App\Models\ApiClientToken::generateRaw();'
+              printf '%s\n' '\App\Models\ApiClientToken::create(["api_client_id"=>$client->id,"user_id"=>$user->id,"name"=>"debug","token_hash"=>$hash,"token_prefix"=>$prefix,"is_active"=>true]);'
+              printf '%s\n' 'echo "CLIENT_ID=".$client->id."\n";'
+              printf '%s\n' 'echo "RAW_TOKEN=".$raw."\n";'
+            } > /tmp/mk_token.php
+            php /tmp/mk_token.php > /tmp/token_out.txt
+            cat /tmp/token_out.txt
+            TOKEN=$(grep RAW_TOKEN /tmp/token_out.txt | cut -d= -f2)
+            CLIENT_ID=$(grep CLIENT_ID /tmp/token_out.txt | cut -d= -f2)
+            rm -f /tmp/mk_token.php /tmp/token_out.txt
+
+            echo "=== Create test files ==="
+            echo "test document content for opportunity 285" > /tmp/test_doc.txt
+            echo "test attachment content for contact 209" > /tmp/test_att.txt
+
+            echo "=== POST /attachments/upload ==="
+            curl -s -i -X POST "https://crm.dexdevs.com/api/gpt/v1/attachments/upload" \
+              -H "X-Api-Key: $TOKEN" \
+              -H "Accept: application/json" \
+              -F "file=@/tmp/test_att.txt;type=text/plain" \
+              -F "category=other" \
+              -F "notes=debug test attachment" \
+              | head -c 3000
+            echo ""
+            echo "=== POST /documents/upload ==="
+            curl -s -i -X POST "https://crm.dexdevs.com/api/gpt/v1/documents/upload" \
+              -H "X-Api-Key: $TOKEN" \
+              -H "Accept: application/json" \
+              -F "file=@/tmp/test_doc.txt;type=text/plain" \
+              -F "name=Debug Test Document" \
+              -F "document_type=other" \
+              -F "opportunity_id=285" \
+              | head -c 3000
+            echo ""
+
+            echo "=== Recent laravel.log (last 60 lines) ==="
+            tail -60 storage/logs/laravel.log || true
+
+            echo "=== Cleanup temp client ==="
+            {
+              printf '%s\n' '<?php'
+              printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
+              printf '%s\n' 'require "vendor/autoload.php";'
+              printf '%s\n' '$app = require "bootstrap/app.php";'
+              printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
+              printf '%s\n' '\App\Models\ApiClientToken::where("api_client_id",'"$CLIENT_ID"')->delete();'
+              printf '%s\n' '\App\Models\ApiClient::where("id",'"$CLIENT_ID"')->delete();'
+              printf '%s\n' 'echo "cleaned up client '"$CLIENT_ID"'\n";'
+            } > /tmp/cleanup.php
+            php /tmp/cleanup.php
+            rm -f /tmp/cleanup.php /tmp/test_doc.txt /tmp/test_att.txt
+
+            echo "Done."
