@@ -20,7 +20,7 @@ class IntegrationController extends Controller
         return view('integrations.index', compact('clients'));
     }
 
-    public function createClient(Request $request): RedirectResponse
+    public function createClient(Request $request): RedirectResponse|View
     {
         $data = $request->validate([
             'name'        => 'required|string|max:100',
@@ -51,10 +51,17 @@ class IntegrationController extends Controller
             'is_active'     => true,
         ]);
 
-        return redirect()->route('integrations.index')
+        // Return the view directly so the token is passed as a PHP variable — no
+        // flash session hop that can silently drop the value on production HTTPS setups.
+        // history.replaceState in the view fixes the URL so browser refresh is safe.
+        $clients = ApiClient::where('user_id', $request->user()->id)
+            ->with('tokens')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return view('integrations.index', compact('clients'))
             ->with('new_token', $raw)
-            ->with('new_client_id', $client->id)
-            ->with('success', 'API client created. Copy your key – it will not be shown again.');
+            ->with('new_client_id', $client->id);
     }
 
     public function createToken(Request $request, ApiClient $client): RedirectResponse

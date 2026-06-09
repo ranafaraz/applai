@@ -5,28 +5,29 @@
 @section('content')
 <div class="max-w-4xl space-y-6">
 
-    {{-- One-time token reveal --}}
-    @if(session('new_token'))
-    <div class="bg-amber-50 border border-amber-300 rounded-xl p-5" x-data="{ copied: false }">
+    {{-- One-time token reveal (passed as direct view variable, not flash) --}}
+    @php $revealToken = $new_token ?? null; @endphp
+    @if($revealToken)
+    <div class="bg-amber-50 border border-amber-300 rounded-xl p-5">
         <div class="flex items-start gap-3">
             <svg class="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
             <div class="flex-1">
-                <p class="font-semibold text-amber-800 mb-1">Copy your API key now – it will not be shown again</p>
-                <code class="block bg-white border border-amber-200 rounded-lg px-4 py-2 text-sm font-mono break-all text-slate-800 select-all" id="new-token">{{ session('new_token') }}</code>
-                <button onclick="navigator.clipboard.writeText('{{ session('new_token') }}'); document.getElementById('copy-btn').innerText='Copied!';"
-                    id="copy-btn"
+                <p class="font-semibold text-amber-800 mb-1">Copy your API key now — it will not be shown again</p>
+                <code class="block bg-white border border-amber-200 rounded-lg px-4 py-2 text-sm font-mono break-all text-slate-800 select-all" id="new-token-code">{{ $revealToken }}</code>
+                <button type="button"
+                    onclick="navigator.clipboard.writeText(document.getElementById('new-token-code').innerText); this.innerText='Copied!';"
                     class="mt-2 text-xs text-amber-700 underline hover:text-amber-900">
                     Copy to clipboard
                 </button>
             </div>
         </div>
     </div>
-    @endif
-
-    @if(session('success') && !session('new_token'))
-    <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
-        {{ session('success') }}
-    </div>
+    {{-- Rewrite URL so a page refresh does not re-submit the form --}}
+    <script>
+        if (history.replaceState) {
+            history.replaceState(null, '', '{{ route('integrations.index') }}');
+        }
+    </script>
     @endif
 
     @if($errors->any())
