@@ -521,7 +521,7 @@ class OpenApiController extends Controller
                     'post' => [
                         'operationId' => 'createDocument',
                         'summary'     => 'Upload or register a document',
-                        'description' => "Create a document with a real file upload (multipart/form-data) **or** by registering a public URL (application/json). Both approaches are fully supported — public_url is optional, not required.\n\n**Multipart upload**: send `file` as binary with `name`, optional `document_type`, `description`, and any entity IDs.\n\n**URL registration**: send JSON with `name`, `public_url`, `mime_type`, `size_bytes`.\n\nSensitive documents (passport, transcript, CV) trigger `sensitive_warnings` in the response. Linking to email_draft or follow_up does NOT trigger sending — draft stays pending user review. Scope: documents:write.",
+                        'description' => 'Upload a file (multipart/form-data) or register a public URL (application/json). Supply opportunity_id, contact_id, email_draft_id, or follow_up_id to link the document on creation. Attaching to email_draft does NOT trigger sending — draft stays pending user review. Scope: documents:write.',
                         'requestBody' => [
                             'required' => true,
                             'content'  => [
