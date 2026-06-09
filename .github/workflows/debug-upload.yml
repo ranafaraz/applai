@@ -18,29 +18,34 @@ jobs:
             set -e
             cd /var/www/crm.dexdevs.com
 
-            echo "=== Ownership / route diagnostics ==="
+            echo "=== Tenant data diagnostics ==="
             {
               printf '%s\n' '<?php'
               printf '%s\n' 'chdir("/var/www/crm.dexdevs.com");'
               printf '%s\n' 'require "vendor/autoload.php";'
               printf '%s\n' '$app = require "bootstrap/app.php";'
               printf '%s\n' '$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();'
-              printf '%s\n' '$user = \App\Models\User::where("email","ranafarazahmed@gmail.com")->first();'
-              printf '%s\n' 'echo "user_id=".$user->id." tenant_id=".$user->tenant_id."\n";'
-              printf '%s\n' '$opp = \App\Models\Opportunity::find(285);'
-              printf '%s\n' 'echo "opp285: ".($opp ? ("user_id=".$opp->user_id." tenant_id=".$opp->tenant_id) : "NOT FOUND")."\n";'
-              printf '%s\n' '$contact = \App\Models\Contact::find(209);'
-              printf '%s\n' 'echo "contact209: ".($contact ? ("user_id=".$contact->user_id." tenant_id=".$contact->tenant_id) : "NOT FOUND")."\n";'
-              printf '%s\n' '$email = \App\Models\EmailMessage::find(519);'
-              printf '%s\n' 'echo "email519: ".($email ? ("user_id=".$email->user_id." tenant_id=".$email->tenant_id) : "NOT FOUND")."\n";'
-              printf '%s\n' '$fu = \App\Models\FollowUp::find(14);'
-              printf '%s\n' 'echo "followup14: ".($fu ? ("user_id=".$fu->user_id." tenant_id=".$fu->tenant_id) : "NOT FOUND")."\n";'
-              printf '%s\n' 'foreach (["opportunities.show","contacts.show","emails.show","follow-ups.show"] as $name) {'
-              printf '%s\n' '    $route = \Illuminate\Support\Facades\Route::getRoutes()->getByName($name);'
-              printf '%s\n' '    echo "$name => ".($route ? ($route->uri()." [".implode(",", $route->middleware())."]") : "MISSING")."\n";'
+              printf '%s\n' 'echo "users:\n";'
+              printf '%s\n' 'foreach (\App\Models\User::all(["id","email","tenant_id","role"]) as $u) {'
+              printf '%s\n' '    echo "  id={$u->id} email={$u->email} tenant_id={$u->tenant_id} role={$u->role}\n";'
               printf '%s\n' '}'
-            } > /tmp/diag2.php
-            php /tmp/diag2.php
-            rm -f /tmp/diag2.php
+              printf '%s\n' 'echo "tenants:\n";'
+              printf '%s\n' 'if (class_exists(\App\Models\Tenant::class)) {'
+              printf '%s\n' '    foreach (\App\Models\Tenant::all() as $t) { echo "  id={$t->id} name={$t->name}\n"; }'
+              printf '%s\n' '} else { echo "  (no Tenant model)\n"; }'
+              printf '%s\n' 'echo "opportunities by tenant_id:\n";'
+              printf '%s\n' 'foreach (\App\Models\Opportunity::selectRaw("tenant_id, count(*) c")->groupBy("tenant_id")->get() as $r) {'
+              printf '%s\n' '    echo "  tenant_id={$r->tenant_id} count={$r->c}\n";'
+              printf '%s\n' '}'
+              printf '%s\n' 'echo "contacts by tenant_id:\n";'
+              printf '%s\n' 'foreach (\App\Models\Contact::selectRaw("tenant_id, count(*) c")->groupBy("tenant_id")->get() as $r) {'
+              printf '%s\n' '    echo "  tenant_id={$r->tenant_id} count={$r->c}\n";'
+              printf '%s\n' '}'
+              printf '%s\n' '$apiClients = \App\Models\ApiClient::all(["id","user_id","name","is_active"]);'
+              printf '%s\n' 'echo "api_clients:\n";'
+              printf '%s\n' 'foreach ($apiClients as $c) { echo "  id={$c->id} user_id={$c->user_id} name={$c->name} active={$c->is_active}\n"; }'
+            } > /tmp/diag3.php
+            php /tmp/diag3.php
+            rm -f /tmp/diag3.php
 
             echo "Done."
