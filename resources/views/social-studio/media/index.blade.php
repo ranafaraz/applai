@@ -1,5 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Media Library')
+@section('page-title', 'Assets')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Social Studio', 'url' => route('social-studio.dashboard')],
+        ['label' => 'Assets'],
+    ]" />
+@endsection
 
 @section('content')
 <div class="p-6 space-y-5">

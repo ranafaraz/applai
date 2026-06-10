@@ -270,7 +270,12 @@
             </button>
 
             {{-- Page Title --}}
-            <h1 class="text-lg font-semibold text-slate-800">@yield('page-title', 'Dashboard')</h1>
+            <div>
+                @hasSection('breadcrumbs')
+                    @yield('breadcrumbs')
+                @endif
+                <h1 class="text-lg font-semibold text-slate-800">@yield('page-title', 'Dashboard')</h1>
+            </div>
 
             <div class="flex-1"></div>
 

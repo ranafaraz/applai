@@ -2,6 +2,13 @@
 @section('title', 'Compose Email')
 @section('page-title', 'Compose Email')
 
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Outbox', 'url' => route('emails.index')],
+        ['label' => 'Compose'],
+    ]" />
+@endsection
+
 @push('styles')
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
     <style>

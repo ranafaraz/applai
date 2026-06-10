@@ -3,6 +3,13 @@
 @section('title', 'Add Contact')
 @section('page-title', 'Add Contact')
 
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Contacts', 'url' => route('contacts.index')],
+        ['label' => 'Add Contact'],
+    ]" />
+@endsection
+
 @section('content')
 <div class="max-w-2xl">
     <div class="mb-4">

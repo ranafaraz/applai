@@ -1,6 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Email Detail')
 @section('page-title', 'Email Detail')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Outbox', 'url' => route('emails.index')],
+        ['label' => Str::limit($email->subject ?: 'Email', 40)],
+    ]" />
+@endsection
 @section('content')
 <div class="max-w-3xl">
     <div class="mb-4"><a href="{{ route('emails.index') }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to Outbox</a></div>

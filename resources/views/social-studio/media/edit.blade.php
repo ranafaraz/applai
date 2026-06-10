@@ -1,5 +1,13 @@
 @extends('layouts.app')
 @section('title', 'Edit Media Asset')
+@section('page-title', 'Edit Media Asset')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Social Studio', 'url' => route('social-studio.dashboard')],
+        ['label' => 'Assets', 'url' => route('social-studio.media.index')],
+        ['label' => Str::limit($asset->title ?: $asset->original_name, 40)],
+    ]" />
+@endsection
 
 @section('content')
 <div class="p-6 max-w-xl space-y-5">

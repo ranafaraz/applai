@@ -3,6 +3,14 @@
 @section('title', 'Edit Contact')
 @section('page-title', 'Edit Contact')
 
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Contacts', 'url' => route('contacts.index')],
+        ['label' => trim($contact->first_name . ' ' . $contact->last_name), 'url' => route('contacts.show', $contact)],
+        ['label' => 'Edit'],
+    ]" />
+@endsection
+
 @section('content')
 <div class="max-w-2xl">
     <div class="mb-4">

@@ -66,7 +66,7 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     // Email Accounts
     // ---------------------------------------------------------------------------
-    Route::resource('email-accounts', EmailAccountController::class);
+    Route::resource('email-accounts', EmailAccountController::class)->whereNumber('email_account');
     Route::post('email-accounts/{id}/test-smtp', [EmailAccountController::class, 'testSmtp'])
         ->name('email-accounts.test-smtp');
     Route::post('email-accounts/{id}/test-imap', [EmailAccountController::class, 'testImap'])
@@ -81,7 +81,7 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     Route::post('contacts/quick-store', [ContactController::class, 'quickStore'])
         ->name('contacts.quick-store');
-    Route::resource('contacts', ContactController::class);
+    Route::resource('contacts', ContactController::class)->whereNumber('contact');
     Route::post('contacts/{id}/suppress', [ContactController::class, 'suppress'])
         ->name('contacts.suppress');
 
@@ -90,21 +90,21 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     Route::delete('opportunities/bulk', [OpportunityController::class, 'bulkDestroy'])
         ->name('opportunities.bulk-destroy');
-    Route::resource('opportunities', OpportunityController::class);
+    Route::resource('opportunities', OpportunityController::class)->whereNumber('opportunity');
     Route::patch('opportunities/{id}/status', [OpportunityController::class, 'updateStatus'])
         ->name('opportunities.update-status');
 
     // ---------------------------------------------------------------------------
     // Documents
     // ---------------------------------------------------------------------------
-    Route::resource('documents', DocumentController::class);
+    Route::resource('documents', DocumentController::class)->whereNumber('document');
     Route::get('documents/{id}/download', [DocumentController::class, 'download'])
         ->name('documents.download');
 
     // ---------------------------------------------------------------------------
     // Email Templates
     // ---------------------------------------------------------------------------
-    Route::resource('email-templates', EmailTemplateController::class);
+    Route::resource('email-templates', EmailTemplateController::class)->whereNumber('email_template');
     Route::post('email-templates/{id}/duplicate', [EmailTemplateController::class, 'duplicate'])
         ->name('email-templates.duplicate');
 
@@ -113,7 +113,7 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     Route::post('email-signatures/{id}/set-default', [EmailSignatureController::class, 'setDefault'])
         ->name('email-signatures.set-default');
-    Route::resource('email-signatures', EmailSignatureController::class)->except(['show']);
+    Route::resource('email-signatures', EmailSignatureController::class)->except(['show'])->whereNumber('email_signature');
 
     // ---------------------------------------------------------------------------
     // Email Messages (Compose / Outbox)
@@ -123,19 +123,19 @@ Route::middleware('auth')->group(function () {
     Route::get('emails/template', [EmailMessageController::class, 'getTemplate'])
         ->name('emails.get-template');
     Route::get('compose', [EmailMessageController::class, 'compose'])->name('compose');
-    Route::resource('emails', EmailMessageController::class);
+    Route::resource('emails', EmailMessageController::class)->except(['create'])->whereNumber('email');
 
     // ---------------------------------------------------------------------------
     // Inbox
     // ---------------------------------------------------------------------------
-    Route::resource('inbox', InboxMessageController::class)->only(['index', 'show', 'destroy']);
+    Route::resource('inbox', InboxMessageController::class)->only(['index', 'show', 'destroy'])->whereNumber('inbox');
     Route::patch('inbox/{id}/review', [InboxMessageController::class, 'markReviewed'])
         ->name('inbox.review');
 
     // ---------------------------------------------------------------------------
     // Follow-ups
     // ---------------------------------------------------------------------------
-    Route::resource('follow-ups', FollowUpController::class)->only(['index', 'show']);
+    Route::resource('follow-ups', FollowUpController::class)->only(['index', 'show'])->whereNumber('follow_up');
     Route::patch('follow-ups/{id}/cancel', [FollowUpController::class, 'cancel'])
         ->name('follow-ups.cancel');
     Route::patch('follow-ups/{id}/reschedule', [FollowUpController::class, 'reschedule'])
@@ -145,7 +145,8 @@ Route::middleware('auth')->group(function () {
     // Suppression List
     // ---------------------------------------------------------------------------
     Route::resource('suppression-list', SuppressionListController::class)
-        ->only(['index', 'store', 'destroy']);
+        ->only(['index', 'store', 'destroy'])
+        ->whereNumber('suppression_list');
 
     // ---------------------------------------------------------------------------
     // Contact Imports
@@ -156,7 +157,8 @@ Route::middleware('auth')->group(function () {
     // Master lookup autocomplete (country, industry, source, city, designation)
     Route::get('lookups/{type}', [LookupController::class, 'index'])->name('lookups.index');
     Route::resource('imports', ContactImportController::class)
-        ->only(['index', 'create', 'store', 'show']);
+        ->only(['index', 'create', 'store', 'show'])
+        ->whereNumber('import');
 
     // ---------------------------------------------------------------------------
     // Opportunity Imports
@@ -164,7 +166,8 @@ Route::middleware('auth')->group(function () {
     Route::get('opportunity-imports/template', [OpportunityImportController::class, 'template'])
         ->name('opportunity-imports.template');
     Route::resource('opportunity-imports', OpportunityImportController::class)
-        ->only(['index', 'create', 'store', 'show']);
+        ->only(['index', 'create', 'store', 'show'])
+        ->whereNumber('opportunity_import');
 
     // ---------------------------------------------------------------------------
     // Reports
@@ -190,7 +193,7 @@ Route::middleware('auth')->group(function () {
     // attach/detach must be registered before the resource to avoid route conflicts
     Route::post('tags/attach', [TagController::class, 'attach'])->name('tags.attach');
     Route::post('tags/detach', [TagController::class, 'detach'])->name('tags.detach');
-    Route::resource('tags', TagController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('tags', TagController::class)->only(['index', 'store', 'update', 'destroy'])->whereNumber('tag');
 
     // ---------------------------------------------------------------------------
     // Settings

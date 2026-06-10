@@ -1,6 +1,13 @@
 @extends('layouts.app')
 @section('title', 'Edit Opportunity')
 @section('page-title', 'Edit Opportunity')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Opportunities', 'url' => route('opportunities.index')],
+        ['label' => Str::limit($opportunity->title, 40), 'url' => route('opportunities.show', $opportunity)],
+        ['label' => 'Edit'],
+    ]" />
+@endsection
 @section('content')
 <div class="max-w-2xl">
     <div class="mb-4"><a href="{{ route('opportunities.show', $opportunity) }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to Opportunity</a></div>

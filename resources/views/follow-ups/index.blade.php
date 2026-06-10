@@ -1,6 +1,9 @@
 @extends('layouts.app')
 @section('title', 'Follow-ups')
 @section('page-title', 'Follow-ups')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[['label' => 'Follow-ups']]" />
+@endsection
 @section('content')
 <div>
     {{-- Filters --}}

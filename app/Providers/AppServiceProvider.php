@@ -24,6 +24,7 @@ use App\Policies\EmailTemplatePolicy;
 use App\Policies\OpportunityPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Route;
 
 class AppServiceProvider extends AuthServiceProvider
 {
@@ -56,6 +57,14 @@ class AppServiceProvider extends AuthServiceProvider
     public function boot(): void
     {
         $this->registerPolicies();
+
+        // ---------------------------------------------------------------
+        // Global route parameter constraints
+        // Controllers type-hint `{id}` route params as `int`, so a
+        // non-numeric segment (e.g. /emails/compose) would otherwise throw
+        // a TypeError (500) instead of resolving to a 404.
+        // ---------------------------------------------------------------
+        Route::pattern('id', '[0-9]+');
 
         // ---------------------------------------------------------------
         // Event → Listener registrations
