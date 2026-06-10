@@ -70,6 +70,36 @@ abstract class GptController extends Controller
         return $mime;
     }
 
+    /**
+     * Format documents linked via uploadDocument()/addDocumentLink() for an
+     * email_draft or follow_up. These are reference documents only — they are
+     * NOT sent with the email/follow-up. Only ApiAttachment records (created
+     * via uploadAttachment and passed as attachment_ids/suggested_attachment_ids)
+     * are sendable.
+     */
+    protected function formatLinkedDocuments(\Illuminate\Support\Collection $apiDocumentLinks): array
+    {
+        return $apiDocumentLinks
+            ->filter(fn ($link) => $link->document !== null)
+            ->map(function ($link) {
+                $doc = $link->document;
+                $cv  = $doc->currentVersion;
+
+                return [
+                    'document_id'   => $doc->id,
+                    'name'          => $doc->name,
+                    'document_type' => $doc->document_type,
+                    'filename'      => $cv?->original_filename,
+                    'mime_type'     => $cv?->mime_type,
+                    'size_bytes'    => $cv?->size_bytes,
+                    'download_url'  => rtrim(config('app.url'), '/') . "/api/gpt/v1/documents/{$doc->id}/download",
+                    'linked_at'     => $link->created_at?->toISOString(),
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
     protected function audit(
         Request $request,
         string $action,

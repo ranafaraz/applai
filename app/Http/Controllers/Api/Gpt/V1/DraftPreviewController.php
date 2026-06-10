@@ -14,7 +14,7 @@ class DraftPreviewController extends GptController
         $user  = $this->apiUser($request);
         $draft = EmailMessage::where('user_id', $user->id)
             ->where('status', 'draft')
-            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments'])
+            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion'])
             ->findOrFail($id);
 
         // Rendered body = raw body + snapshot signature (if captured) or live render
@@ -48,6 +48,8 @@ class DraftPreviewController extends GptController
             'validation_warnings' => $a->validation_warnings ?? [],
         ])->values()->toArray();
 
+        $linkedDocuments = $this->formatLinkedDocuments($draft->apiDocumentLinks);
+
         return response()->json([
             'draft_id'                     => $draft->id,
             'send_status'                  => $draft->status,
@@ -65,11 +67,14 @@ class DraftPreviewController extends GptController
             'attachment_count'             => count($attachments),
             'attachment_validation_status' => count($attachmentWarnings) > 0 ? 'warning' : 'valid',
             'attachment_validation_warnings' => $attachmentWarnings,
+            'linked_documents'             => $linkedDocuments,
+            'linked_document_count'        => count($linkedDocuments),
             'contact_id'                   => $draft->contact_id,
             'opportunity_id'               => $draft->opportunity_id,
             'created_at'                   => $draft->created_at?->toISOString(),
             'audit_log_reference'          => $auditRef,
             'notice'                       => 'This draft requires explicit user review and confirmation before sending. Auto-sending is disabled.',
+            'linked_documents_notice'      => 'linked_documents are reference files attached via uploadDocument — they are NOT sent with this email. Only items in attachments/attachment_ids (added via uploadAttachment + attachment_ids) are sent.',
         ]);
     }
 }
