@@ -3,6 +3,13 @@
 @section('title', $contact->first_name . ' ' . $contact->last_name)
 @section('page-title', 'Contact Details')
 
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Contacts', 'url' => route('contacts.index')],
+        ['label' => trim($contact->first_name . ' ' . $contact->last_name)],
+    ]" />
+@endsection
+
 @section('content')
 {{-- Header --}}
 <div class="bg-white border border-slate-200 rounded-xl p-6 mb-6">

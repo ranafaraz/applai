@@ -1,6 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Follow-up Detail')
 @section('page-title', 'Follow-up Detail')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Follow-ups', 'url' => route('follow-ups.index')],
+        ['label' => 'Follow-up #' . $followUp->id],
+    ]" />
+@endsection
 @section('content')
 <div class="max-w-3xl">
     <div class="mb-4"><a href="{{ route('follow-ups.index') }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to Follow-ups</a></div>

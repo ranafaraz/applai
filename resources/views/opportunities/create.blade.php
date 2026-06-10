@@ -1,6 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Add Opportunity')
 @section('page-title', 'Add Opportunity')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Opportunities', 'url' => route('opportunities.index')],
+        ['label' => 'Add Opportunity'],
+    ]" />
+@endsection
 @section('content')
 <div class="max-w-2xl">
     <div class="mb-4"><a href="{{ route('opportunities.index') }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to Opportunities</a></div>

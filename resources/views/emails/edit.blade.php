@@ -2,6 +2,14 @@
 @section('title', 'Edit ' . ucfirst($email->status))
 @section('page-title', 'Edit ' . ucfirst($email->status))
 
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Outbox', 'url' => route('emails.index')],
+        ['label' => Str::limit($email->subject ?: 'Email', 40), 'url' => route('emails.show', $email)],
+        ['label' => 'Edit'],
+    ]" />
+@endsection
+
 @push('styles')
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
     <style>

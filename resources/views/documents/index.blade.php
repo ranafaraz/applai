@@ -1,6 +1,9 @@
 @extends('layouts.app')
 @section('title', 'Documents')
 @section('page-title', 'Documents')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[['label' => 'Documents']]" />
+@endsection
 @section('content')
 <div>
     <div class="flex items-center justify-between mb-5">

@@ -1,5 +1,13 @@
 @extends('layouts.app')
 @section('title', 'LinkedIn Apps')
+@section('page-title', 'LinkedIn Apps')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Social Studio', 'url' => route('social-studio.dashboard')],
+        ['label' => 'Connections', 'url' => route('social-studio.connections')],
+        ['label' => 'LinkedIn Apps'],
+    ]" />
+@endsection
 
 @section('content')
 <div class="p-6 max-w-3xl space-y-5">

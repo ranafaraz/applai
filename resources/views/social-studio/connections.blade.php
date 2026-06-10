@@ -1,5 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Social Connections')
+@section('page-title', 'Connections')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Social Studio', 'url' => route('social-studio.dashboard')],
+        ['label' => 'Connections'],
+    ]" />
+@endsection
 
 @section('content')
 <div class="p-6 space-y-6 max-w-6xl" data-connections-page>

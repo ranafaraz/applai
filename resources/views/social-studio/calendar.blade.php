@@ -1,5 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Content Calendar')
+@section('page-title', 'Planner')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Social Studio', 'url' => route('social-studio.dashboard')],
+        ['label' => 'Planner'],
+    ]" />
+@endsection
 
 @push('styles')
 <style>

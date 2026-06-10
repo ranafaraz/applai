@@ -3,6 +3,10 @@
 @section('title', 'Outbox')
 @section('page-title', 'Outbox')
 
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[['label' => 'Outbox']]" />
+@endsection
+
 @section('content')
 <div x-data="{ tab: '{{ request('tab', 'outbox') }}' }">
     {{-- Tabs --}}

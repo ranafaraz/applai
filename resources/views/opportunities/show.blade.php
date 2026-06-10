@@ -1,6 +1,12 @@
 @extends('layouts.app')
 @section('title', $opportunity->title)
 @section('page-title', Str::limit($opportunity->title, 60))
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Opportunities', 'url' => route('opportunities.index')],
+        ['label' => Str::limit($opportunity->title, 40)],
+    ]" />
+@endsection
 @section('content')
 @php
     $typeColors = ['job'=>'blue','scholarship'=>'purple','research'=>'indigo','grant'=>'yellow','networking'=>'green'];

@@ -1,5 +1,14 @@
 @extends('layouts.app')
 @section('title', 'Edit Post')
+@section('page-title', 'Edit Post')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Social Studio', 'url' => route('social-studio.dashboard')],
+        ['label' => 'Content', 'url' => route('social-studio.posts.index')],
+        ['label' => Str::limit($post->title_internal, 40), 'url' => route('social-studio.posts.show', $post->id)],
+        ['label' => 'Edit'],
+    ]" />
+@endsection
 
 @section('content')
 <div class="p-6 max-w-5xl space-y-5">

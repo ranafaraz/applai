@@ -3,6 +3,10 @@
 @section('title', 'Opportunities')
 @section('page-title', 'Opportunities')
 
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[['label' => 'Opportunities']]" />
+@endsection
+
 @section('content')
 <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
     <form method="GET" action="{{ route('opportunities.index') }}" class="flex flex-wrap gap-3">

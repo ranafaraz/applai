@@ -1,6 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Upload Document')
 @section('page-title', 'Upload Document')
+@section('breadcrumbs')
+    <x-breadcrumbs :items="[
+        ['label' => 'Documents', 'url' => route('documents.index')],
+        ['label' => 'Upload Document'],
+    ]" />
+@endsection
 @section('content')
 <div class="max-w-xl">
     <div class="mb-4"><a href="{{ route('documents.index') }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to Documents</a></div>
