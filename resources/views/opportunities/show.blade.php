@@ -63,7 +63,7 @@
             <div><p class="font-semibold text-slate-800">{{ $opportunity->contacts->count() }}</p><p class="text-slate-500 text-xs">Contacts</p></div>
             <div><p class="font-semibold text-slate-800">{{ $sentEmailCount }}</p><p class="text-slate-500 text-xs">Emails Sent</p></div>
             <div><p class="font-semibold text-slate-800">{{ $pendingFollowUpCount }}</p><p class="text-slate-500 text-xs">Pending Follow-ups</p></div>
-            <div><p class="font-semibold text-slate-800">{{ $opportunity->documents->count() }}</p><p class="text-slate-500 text-xs">Documents</p></div>
+            <div><p class="font-semibold text-slate-800">{{ $opportunity->documents->count() + $opportunity->apiDocumentLinks->count() }}</p><p class="text-slate-500 text-xs">Documents</p></div>
         </div>
     </div>
 
