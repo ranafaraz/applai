@@ -23,7 +23,7 @@ class EmailDraftController extends GptController
         $drafts = EmailMessage::where('user_id', $user->id)
             ->where('status', 'draft')
             ->where('direction', 'outbound')
-            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments'])
+            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion'])
             ->orderByDesc('created_at')
             ->limit(50)
             ->get();
@@ -153,7 +153,7 @@ class EmailDraftController extends GptController
             ", attachment_count=" . count($data['attachment_ids'] ?? []),
             "draft_id={$draft->id}");
 
-        $draft->load(['emailSignature', 'apiAttachments']);
+        $draft->load(['emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
 
         $response = [
             'data'                 => $this->format($draft),
@@ -175,6 +175,9 @@ class EmailDraftController extends GptController
         $attachments    = $d->relationLoaded('apiAttachments') ? $d->apiAttachments : collect();
         $attachmentIds  = $attachments->pluck('id')->toArray();
         $hasWarnings    = $attachments->where('validation_status', 'warning')->isNotEmpty();
+        $linkedDocuments = $d->relationLoaded('apiDocumentLinks')
+            ? $this->formatLinkedDocuments($d->apiDocumentLinks)
+            : [];
 
         return [
             'id'                           => $d->id,
@@ -191,6 +194,9 @@ class EmailDraftController extends GptController
             'attachment_ids'               => $attachmentIds,
             'attachment_count'             => count($attachmentIds),
             'attachment_validation_status' => $hasWarnings ? 'warning' : 'valid',
+            'linked_documents'             => $linkedDocuments,
+            'linked_document_count'        => count($linkedDocuments),
+            'linked_documents_notice'      => 'linked_documents are reference files attached via uploadDocument — they are NOT sent with this email. Only items in attachment_ids (added via uploadAttachment + attachment_ids) are sent.',
             'confirmation_required'        => true,
             'is_follow_up'                 => $d->is_follow_up,
             'created_at'                   => $d->created_at?->toISOString(),

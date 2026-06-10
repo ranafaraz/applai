@@ -120,6 +120,20 @@ class OpenApiController extends Controller
                             'created_at'  => ['type' => 'string', 'format' => 'date-time'],
                         ],
                     ],
+                    'LinkedDocument' => [
+                        'type' => 'object',
+                        'description' => 'A reference document linked via uploadDocument/addDocumentLink. NOT a sendable attachment.',
+                        'properties' => [
+                            'document_id'   => ['type' => 'integer'],
+                            'name'          => ['type' => 'string'],
+                            'document_type' => ['type' => 'string', 'enum' => ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'contract', 'report', 'other']],
+                            'filename'      => ['type' => 'string', 'nullable' => true],
+                            'mime_type'     => ['type' => 'string', 'nullable' => true],
+                            'size_bytes'    => ['type' => 'integer', 'nullable' => true],
+                            'download_url'  => ['type' => 'string', 'format' => 'uri'],
+                            'linked_at'     => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                        ],
+                    ],
                     'Attachment' => [
                         'type' => 'object',
                         'properties' => [
@@ -152,6 +166,8 @@ class OpenApiController extends Controller
                             'attachment_ids'               => ['type' => 'array', 'items' => ['type' => 'integer']],
                             'attachment_count'             => ['type' => 'integer'],
                             'attachment_validation_status' => ['type' => 'string', 'enum' => ['valid','warning']],
+                            'linked_documents'             => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/LinkedDocument'], 'description' => 'Reference docs linked via uploadDocument — not sent with the email'],
+                            'linked_document_count'        => ['type' => 'integer'],
                             'confirmation_required'        => ['type' => 'boolean'],
                             'audit_log_reference'          => ['type' => 'integer', 'nullable' => true],
                             'preview'                      => ['type' => 'string'],
@@ -174,6 +190,8 @@ class OpenApiController extends Controller
                             'suggested_attachment_ids'     => ['type' => 'array', 'items' => ['type' => 'integer']],
                             'attachment_count'             => ['type' => 'integer'],
                             'attachment_validation_status' => ['type' => 'string', 'enum' => ['valid','warning']],
+                            'linked_documents'             => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/LinkedDocument'], 'description' => 'Reference docs linked via uploadDocument — not sendable'],
+                            'linked_document_count'        => ['type' => 'integer'],
                             'confirmation_required'        => ['type' => 'boolean'],
                         ],
                     ],
@@ -681,7 +699,7 @@ class OpenApiController extends Controller
                     'post' => [
                         'operationId' => 'createEmailDraft',
                         'summary'     => 'Create an email draft for review',
-                        'description' => 'Saves a draft linked to a contact. The draft is NEVER sent automatically. If signature_id is provided, the rendered HTML is snapshotted so later signature edits do not alter this draft. Scope: drafts:create.',
+                        'description' => 'Saves a draft linked to a contact. Never sent automatically. signature_id snapshots rendered HTML. attachment_ids (from uploadAttachment) are sendable; uploadDocument links appear separately as linked_documents (reference-only). Scope: drafts:create.',
                         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
                             'type'     => 'object',
                             'required' => ['contact_id', 'subject', 'body'],
@@ -715,7 +733,7 @@ class OpenApiController extends Controller
                     'get' => [
                         'operationId' => 'getDraftRenderedPreview',
                         'summary'     => 'Get full rendered preview of a draft',
-                        'description' => 'Returns recipient, subject, rendered body (with signature), attachment list with validation status, and confirmation metadata. Use this to present the user with the final email before they approve sending. Scope: drafts:read.',
+                        'description' => 'Returns recipient, subject, rendered body, sendable attachments with validation status, linked_documents (reference-only, not sent), and confirmation metadata. Use to show the user the final email before sending. Scope: drafts:read.',
                         'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
                         'responses'   => [
                             '200' => ['description' => 'Rendered draft preview', 'content' => ['application/json' => ['schema' => [
@@ -737,8 +755,11 @@ class OpenApiController extends Controller
                                     'attachment_count'               => ['type' => 'integer'],
                                     'attachment_validation_status'   => ['type' => 'string', 'enum' => ['valid','warning']],
                                     'attachment_validation_warnings' => ['type' => 'array', 'items' => ['type' => 'string']],
+                                    'linked_documents'               => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/LinkedDocument'], 'description' => 'Reference docs linked via uploadDocument — NOT sent with this email'],
+                                    'linked_document_count'          => ['type' => 'integer'],
                                     'audit_log_reference'            => ['type' => 'integer', 'nullable' => true],
                                     'notice'                         => ['type' => 'string'],
+                                    'linked_documents_notice'        => ['type' => 'string'],
                                 ],
                             ]]]],
                         ],
@@ -751,7 +772,7 @@ class OpenApiController extends Controller
                     'post' => [
                         'operationId' => 'createFollowUp',
                         'summary'     => 'Schedule a follow-up reminder',
-                        'description' => 'Creates a reminder-only follow-up. Auto-sending is always disabled. Signature snapshot and suggested attachments are preserved for user review. Scope: followups:create.',
+                        'description' => 'Creates a reminder-only follow-up. Auto-sending is always disabled. suggested_attachment_ids (uploadAttachment) are sendable; uploadDocument links appear separately as linked_documents (reference-only). Scope: followups:create.',
                         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
                             'type'     => 'object',
                             'required' => ['contact_id', 'due_at'],

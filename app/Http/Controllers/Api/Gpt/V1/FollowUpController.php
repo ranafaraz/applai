@@ -21,7 +21,7 @@ class FollowUpController extends GptController
         $followUps = FollowUp::where('user_id', $user->id)
             ->where('status', 'pending')
             ->where('due_at', '<=', now()->endOfDay())
-            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments'])
+            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion'])
             ->orderBy('due_at')
             ->limit(50)
             ->get();
@@ -123,7 +123,7 @@ class FollowUpController extends GptController
             ", attachment_count=" . count($data['suggested_attachment_ids'] ?? []),
             "id={$followUp->id}");
 
-        $followUp->load(['emailSignature', 'apiAttachments']);
+        $followUp->load(['emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
 
         $response = [
             'data'                  => $this->format($followUp),
@@ -146,6 +146,9 @@ class FollowUpController extends GptController
     {
         $attachments   = $f->relationLoaded('apiAttachments') ? $f->apiAttachments : collect();
         $attachmentIds = $attachments->pluck('id')->toArray();
+        $linkedDocuments = $f->relationLoaded('apiDocumentLinks')
+            ? $this->formatLinkedDocuments($f->apiDocumentLinks)
+            : [];
 
         return [
             'id'                           => $f->id,
@@ -161,6 +164,9 @@ class FollowUpController extends GptController
             'suggested_attachment_ids'     => $attachmentIds,
             'attachment_count'             => count($attachmentIds),
             'attachment_validation_status' => $attachments->where('validation_status', 'warning')->isNotEmpty() ? 'warning' : 'valid',
+            'linked_documents'             => $linkedDocuments,
+            'linked_document_count'        => count($linkedDocuments),
+            'linked_documents_notice'      => 'linked_documents are reference files attached via uploadDocument — they are NOT sent with this follow-up. Only items in suggested_attachment_ids (added via uploadAttachment + suggested_attachment_ids) are sendable.',
             'confirmation_required'        => true,
             'contact'                      => $f->contact?->only(['id', 'first_name', 'last_name', 'email']),
             'opportunity'                  => $f->opportunity?->only(['id', 'title', 'status']),
