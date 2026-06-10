@@ -550,7 +550,7 @@ class OpenApiController extends Controller
                     'post' => [
                         'operationId' => 'uploadDocument',
                         'summary'     => 'Upload a file to CRM storage',
-                        'description' => 'Stores a real file from this conversation and returns a CRM-hosted download URL. Supply entity IDs to link on creation. Attaching to email_draft does NOT send it. Preferred: send file_base64 (the file content, base64-encoded) + filename as JSON — GPT Actions cannot stream raw multipart file uploads. Scope: documents:write.',
+                        'description' => 'Stores a file and returns a CRM-hosted download URL. Supply entity IDs to link on creation (email_draft attach does NOT send it). Send file_base64 + filename as JSON — GPT Actions cannot stream multipart binary uploads. Scope: documents:write.',
                         'requestBody' => ['required' => true, 'content' => [
                             'application/json' => ['schema' => [
                                 'type'     => 'object',
@@ -594,7 +594,7 @@ class OpenApiController extends Controller
                     'post' => [
                         'operationId' => 'uploadAttachment',
                         'summary'     => 'Upload an attachment file to CRM storage',
-                        'description' => 'Stores a real file from this conversation and returns a CRM-hosted download URL you can then pass as attachment_ids on a draft or follow-up. Preferred: send file_base64 (the file content, base64-encoded) + filename as JSON — GPT Actions cannot stream raw multipart file uploads. Scope: attachments:write.',
+                        'description' => 'Stores a file and returns a CRM-hosted download URL for use as attachment_ids on drafts/follow-ups. Send file_base64 + filename as JSON — GPT Actions cannot stream multipart binary uploads. Scope: attachments:write.',
                         'requestBody' => ['required' => true, 'content' => [
                             'application/json' => ['schema' => [
                                 'type'     => 'object',
