@@ -100,6 +100,29 @@
                 </div>
             </div>
         @endif
+        @php $inboxReplies = $email->relationLoaded('inboxReplies') ? $email->inboxReplies->sortByDesc('received_at') : collect(); @endphp
+        @if($inboxReplies->isNotEmpty())
+            <div class="pt-4 border-t border-slate-100">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <p class="text-sm font-semibold text-slate-700">Replies Received</p>
+                    <span class="text-xs text-slate-500">{{ $inboxReplies->count() }} matched {{ Str::plural('reply', $inboxReplies->count()) }}</span>
+                </div>
+                <div class="space-y-3">
+                    @foreach($inboxReplies as $reply)
+                        <a href="{{ route('inbox.show', $reply) }}" class="block border border-indigo-100 bg-indigo-50 rounded-lg p-4 hover:bg-indigo-100">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-800">{{ $reply->from_name ?: $reply->from_email }}</p>
+                                    <p class="text-xs text-slate-500">{{ $reply->from_email }} via {{ $reply->emailAccount->email ?? 'unknown account' }}</p>
+                                </div>
+                                <span class="text-xs text-slate-500 flex-shrink-0">{{ optional($reply->received_at)->format('M j, Y g:i A') }}</span>
+                            </div>
+                            <p class="text-sm text-slate-700 mt-2">{{ Str::limit($reply->body_text ?: strip_tags((string) $reply->body_html), 220) }}</p>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+        @endif
         <div class="flex gap-3 pt-4 border-t border-slate-100">
             @if(in_array($email->status, ['draft','scheduled']))
                 <a href="{{ route('emails.edit', $email) }}" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">

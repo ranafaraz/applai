@@ -129,6 +129,9 @@ Route::middleware('auth')->group(function () {
     // Inbox
     // ---------------------------------------------------------------------------
     Route::resource('inbox', InboxMessageController::class)->only(['index', 'show', 'destroy'])->whereNumber('inbox');
+    Route::get('inbox/{message}/attachments/{attachment}/download', [InboxMessageController::class, 'downloadAttachment'])
+        ->whereNumber(['message', 'attachment'])
+        ->name('inbox.attachments.download');
     Route::patch('inbox/{id}/review', [InboxMessageController::class, 'markReviewed'])
         ->name('inbox.review');
 

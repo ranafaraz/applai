@@ -27,12 +27,32 @@
                 @if($message->matchedOpportunity)
                     <span>Opportunity: <a href="{{ route('opportunities.show', $message->matchedOpportunity) }}" class="text-indigo-700 font-medium hover:underline">{{ Str::limit($message->matchedOpportunity->title, 50) }}</a></span>
                 @endif
+                @if($message->matchedOutbound)
+                    <span>Original email: <a href="{{ route('emails.show', $message->matchedOutbound) }}" class="text-indigo-700 font-medium hover:underline">{{ Str::limit($message->matchedOutbound->subject, 50) }}</a></span>
+                @endif
             </div>
         @endif
 
         <div class="pt-4 border-t border-slate-100">
             <div class="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-line">{{ $message->body_text ?? strip_tags($message->body_html) }}</div>
         </div>
+
+        @if($message->attachments->isNotEmpty())
+            <div class="pt-4 border-t border-slate-100">
+                <p class="text-sm font-semibold text-slate-700 mb-2">Attachments</p>
+                <div class="flex flex-wrap gap-2">
+                    @foreach($message->attachments as $attachment)
+                        <a href="{{ route('inbox.attachments.download', [$message, $attachment]) }}"
+                           class="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-100">
+                            {{ $attachment->file_name }}
+                            @if($attachment->file_size)
+                                <span class="text-indigo-400">({{ number_format($attachment->file_size / 1024, 1) }} KB)</span>
+                            @endif
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+        @endif
 
         <div class="flex gap-3 pt-4 border-t border-slate-100 flex-wrap">
             <form method="POST" action="{{ route('inbox.review', $message) }}" class="flex gap-2">

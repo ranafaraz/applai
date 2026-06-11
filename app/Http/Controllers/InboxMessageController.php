@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\EmailAccount;
+use App\Models\InboxAttachment;
 use App\Models\InboxMessage;
 use App\Models\Tag;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
 
 class InboxMessageController extends Controller
@@ -47,7 +50,7 @@ class InboxMessageController extends Controller
     public function show(Request $request, int $id): View
     {
         $message = $this->tenantQuery(InboxMessage::class)
-            ->with(['emailAccount', 'matchedContact', 'matchedOpportunity', 'matchedOutbound'])
+            ->with(['emailAccount', 'matchedContact', 'matchedOpportunity', 'matchedOutbound', 'attachments'])
             ->findOrFail($id);
 
         // Auto-mark as read when viewed
@@ -56,6 +59,20 @@ class InboxMessageController extends Controller
         }
 
         return view('inbox.show', compact('message'));
+    }
+
+    public function downloadAttachment(Request $request, int $messageId, int $attachmentId): StreamedResponse
+    {
+        $message = $this->tenantQuery(InboxMessage::class)->findOrFail($messageId);
+
+        /** @var InboxAttachment $attachment */
+        $attachment = $message->attachments()->findOrFail($attachmentId);
+
+        abort_unless(Storage::disk('local')->exists($attachment->file_path), 404);
+
+        return Storage::disk('local')->download($attachment->file_path, $attachment->file_name, [
+            'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
+        ]);
     }
 
     public function markReviewed(Request $request, int $id): RedirectResponse

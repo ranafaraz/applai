@@ -9,6 +9,8 @@ use App\Events\EmailSent;
 use App\Events\EmailFailed;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
@@ -47,7 +49,7 @@ class EmailSendingService
         }
 
         $emailMessage->refresh();
-        $emailMessage->load('emailAccount', 'contact', 'opportunity');
+        $emailMessage->load('emailAccount', 'contact', 'opportunity', 'attachments', 'apiAttachments');
         $account = $emailMessage->emailAccount;
 
         // 1. Check suppression list
@@ -82,6 +84,12 @@ class EmailSendingService
             $mime->html($emailMessage->body);
             $mime->text(strip_tags($emailMessage->body));
 
+            $messageId = $emailMessage->message_id
+                ? self::normalizeMessageId($emailMessage->message_id)
+                : $this->generateMessageId($account);
+
+            $mime->getHeaders()->addIdHeader('Message-ID', trim($messageId, '<>'));
+
             // CC / BCC
             if (!empty($emailMessage->cc)) {
                 foreach ($emailMessage->cc as $cc) {
@@ -94,6 +102,8 @@ class EmailSendingService
                 }
             }
 
+            $this->attachFiles($mime, $emailMessage);
+
             // 6. Send
             $mailer->send($mime);
 
@@ -104,7 +114,7 @@ class EmailSendingService
             $emailMessage->update([
                 'status'     => 'sent',
                 'sent_at'    => now(),
-                'message_id' => $mime->generateMessageId(),
+                'message_id' => $messageId,
             ]);
 
             // 9. Fire event. Timeline + CRM notifications are handled by listeners.
@@ -171,6 +181,41 @@ class EmailSendingService
                 'emails_sent_today' => 0,
                 'last_reset_at'     => now(),
             ]);
+    }
+
+    public static function normalizeMessageId(?string $messageId): ?string
+    {
+        if ($messageId === null) {
+            return null;
+        }
+
+        $messageId = trim(preg_replace('/\s+/', ' ', $messageId) ?? '');
+        $messageId = trim($messageId, " \t\n\r\0\x0B\"'<>;,");
+
+        if ($messageId === '' || ! str_contains($messageId, '@')) {
+            return null;
+        }
+
+        return '<' . strtolower($messageId) . '>';
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function extractMessageIds(?string $header): array
+    {
+        if ($header === null || trim($header) === '') {
+            return [];
+        }
+
+        preg_match_all('/<[^>]+>|[^\s,;<>]+@[^\s,;<>]+/', $header, $matches);
+
+        return collect($matches[0] ?? [])
+            ->map(fn (string $id) => self::normalizeMessageId($id))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
@@ -251,6 +296,61 @@ class EmailSendingService
         ]);
 
         return $transport;
+    }
+
+    private function generateMessageId(EmailAccount $account): string
+    {
+        $domain = strtolower(trim(Str::after($account->email, '@')));
+
+        if ($domain === '' || $domain === $account->email) {
+            $domain = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost';
+        }
+
+        return '<' . Str::uuid()->toString() . '@' . $domain . '>';
+    }
+
+    private function attachFiles(Email $mime, EmailMessage $emailMessage): void
+    {
+        foreach ($emailMessage->attachments as $attachment) {
+            $path = Storage::disk('local')->path($attachment->file_path);
+
+            if (is_file($path)) {
+                $mime->attachFromPath($path, $attachment->file_name, $attachment->mime_type);
+            } else {
+                Log::warning('EmailSendingService: local attachment file missing', [
+                    'email_message_id' => $emailMessage->id,
+                    'attachment_id'    => $attachment->id,
+                    'file_path'        => $attachment->file_path,
+                ]);
+            }
+        }
+
+        foreach ($emailMessage->apiAttachments as $attachment) {
+            if (! $attachment->file_path) {
+                continue;
+            }
+
+            $disk = Storage::disk($attachment->storage_disk ?: 'local');
+            $candidates = [$attachment->file_path, 'private/' . ltrim($attachment->file_path, '/')];
+            $path = null;
+
+            foreach ($candidates as $candidate) {
+                if ($disk->exists($candidate)) {
+                    $path = $disk->path($candidate);
+                    break;
+                }
+            }
+
+            if ($path && is_file($path)) {
+                $mime->attachFromPath($path, $attachment->filename, $attachment->mime_type);
+            } else {
+                Log::warning('EmailSendingService: API attachment file missing', [
+                    'email_message_id' => $emailMessage->id,
+                    'attachment_id'    => $attachment->id,
+                    'file_path'        => $attachment->file_path,
+                ]);
+            }
+        }
     }
 
     /**

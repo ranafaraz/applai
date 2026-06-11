@@ -124,6 +124,11 @@ class EmailMessage extends Model
         return $this->hasMany(EmailMessage::class, 'parent_message_id');
     }
 
+    public function inboxReplies(): HasMany
+    {
+        return $this->hasMany(InboxMessage::class, 'matched_outbound_id');
+    }
+
     /**
      * The parent message this is a reply to.
      */

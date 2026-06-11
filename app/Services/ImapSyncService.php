@@ -7,9 +7,12 @@ use App\Models\Contact;
 use App\Models\EmailAccount;
 use App\Models\EmailMessage;
 use App\Models\FollowUp;
+use App\Models\InboxAttachment;
 use App\Models\InboxMessage;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Throwable;
 use Webklex\PHPIMAP\ClientManager;
 
@@ -39,38 +42,50 @@ class ImapSyncService
         }
 
         try {
-            $folder = $client->getFolder('INBOX');
-
             // Fetch since last_sync_at, or the last 7 days if never synced
             $since = $account->last_sync_at
                 ? $account->last_sync_at->subMinutes(5)  // small overlap to avoid gaps
                 : Carbon::now()->subDays(7);
 
-            $messages = $folder->query()
-                ->since($since)
-                ->leaveUnread()
-                ->get();
-
-            foreach ($messages as $imapMessage) {
+            foreach ($this->syncFolderNames($account) as $folderName) {
                 try {
-                    $inboxMessage = $this->processMessage($imapMessage, $account);
-
-                    if ($inboxMessage === null) {
-                        // Already stored — skip
-                        continue;
-                    }
-
-                    $stats['synced']++;
-
-                    if ($inboxMessage->matched_contact_id || $inboxMessage->matched_outbound_id) {
-                        $stats['matched']++;
-                    }
+                    $folder = $client->getFolder($folderName);
                 } catch (Throwable $e) {
-                    Log::warning('ImapSyncService: failed to process message', [
+                    Log::info('ImapSyncService: folder unavailable, skipping', [
                         'email_account_id' => $account->id,
+                        'folder'           => $folderName,
                         'error'            => $e->getMessage(),
                     ]);
-                    $stats['errors'][] = $e->getMessage();
+                    continue;
+                }
+
+                $messages = $folder->query()
+                    ->since($since)
+                    ->leaveUnread()
+                    ->get();
+
+                foreach ($messages as $imapMessage) {
+                    try {
+                        $inboxMessage = $this->processMessage($imapMessage, $account);
+
+                        if ($inboxMessage === null) {
+                            // Already stored, self-sent, or irrelevant — skip
+                            continue;
+                        }
+
+                        $stats['synced']++;
+
+                        if ($inboxMessage->matched_contact_id || $inboxMessage->matched_outbound_id) {
+                            $stats['matched']++;
+                        }
+                    } catch (Throwable $e) {
+                        Log::warning('ImapSyncService: failed to process message', [
+                            'email_account_id' => $account->id,
+                            'folder'           => $folderName,
+                            'error'            => $e->getMessage(),
+                        ]);
+                        $stats['errors'][] = $e->getMessage();
+                    }
                 }
             }
 
@@ -129,8 +144,18 @@ class ImapSyncService
      */
     public function cancelFollowUpsOnReply(InboxMessage $reply): void
     {
-        if (!$reply->matched_opportunity_id && !$reply->matched_contact_id) {
+        if (!$reply->matched_outbound_id && !$reply->matched_opportunity_id && !$reply->matched_contact_id) {
             return;
+        }
+
+        if ($reply->matched_outbound_id) {
+            FollowUp::query()
+                ->where('status', 'pending')
+                ->where('email_message_id', $reply->matched_outbound_id)
+                ->update([
+                    'status'        => 'cancelled',
+                    'cancel_reason' => 'reply_received',
+                ]);
         }
 
         $query = FollowUp::query()->where('status', 'pending');
@@ -172,6 +197,26 @@ class ImapSyncService
     }
 
     /**
+     * Gmail filters and threaded conversations can place real replies in
+     * All Mail, Spam, or Junk without the INBOX label. Other providers stay
+     * on INBOX.
+     *
+     * @return array<int, string>
+     */
+    private function syncFolderNames(EmailAccount $account): array
+    {
+        $folders = ['INBOX'];
+
+        if (str_contains(strtolower($account->imap_host), 'gmail.com')) {
+            $folders[] = '[Gmail]/All Mail';
+            $folders[] = '[Gmail]/Spam';
+            $folders[] = '[Gmail]/Junk';
+        }
+
+        return $folders;
+    }
+
+    /**
      * Process a single IMAP message: store it, match it, fire events.
      *
      * @return InboxMessage|null  null if the message was already stored
@@ -182,27 +227,39 @@ class ImapSyncService
     ): ?InboxMessage {
         $uid = (string) $imapMsg->getUid();
 
-        // a. Idempotency check
+        // Extract headers
+        $fromAddress  = $this->extractEmail($imapMsg->getFrom());
+        $fromName     = $this->extractName($imapMsg->getFrom());
+        $messageId    = EmailSendingService::normalizeMessageId($this->headerString($imapMsg->getMessageId()));
+        $inReplyTo    = EmailSendingService::normalizeMessageId($this->headerString($imapMsg->getInReplyTo()));
+        $references   = $this->headerString($imapMsg->getReferences());
+        $subject      = (string) ($imapMsg->getSubject() ?? '');
+        $receivedAt   = $this->parseDate($imapMsg->getDate()) ?? now();
+
+        if (strtolower(trim($fromAddress)) === strtolower(trim($account->email))) {
+            return null;
+        }
+
+        // a. Idempotency check. Gmail can expose the same message through
+        // INBOX and All Mail with different UIDs, so Message-ID is preferred.
         $existing = InboxMessage::where('email_account_id', $account->id)
-            ->where('uid', $uid)
+            ->where(function ($query) use ($uid, $messageId) {
+                $query->where('uid', $uid);
+
+                if ($messageId) {
+                    $query->orWhere('message_id', $messageId);
+                }
+            })
             ->first();
 
         if ($existing) {
             return null;
         }
 
-        // Extract headers
-        $fromAddress  = $this->extractEmail($imapMsg->getFrom());
-        $fromName     = $this->extractName($imapMsg->getFrom());
-        $messageId    = $this->headerString($imapMsg->getMessageId());
-        $inReplyTo    = $this->headerString($imapMsg->getInReplyTo());
-        $references   = $this->headerString($imapMsg->getReferences());
-        $subject      = (string) ($imapMsg->getSubject() ?? '');
-        $receivedAt   = $this->parseDate($imapMsg->getDate()) ?? now();
-
         // b. Store inbox message
         /** @var InboxMessage $inboxMessage */
         $inboxMessage = InboxMessage::create([
+            'tenant_id'             => $account->tenant_id,
             'user_id'               => $account->user_id,
             'email_account_id'      => $account->id,
             'uid'                   => $uid,
@@ -239,13 +296,12 @@ class ImapSyncService
         // e. Persist matches
         $updates = [];
 
-        if ($contact) {
-            $updates['matched_contact_id'] = $contact->id;
-        }
-
         if ($outbound) {
             $updates['matched_outbound_id']   = $outbound->id;
             $updates['matched_opportunity_id'] = $outbound->opportunity_id;
+            $updates['matched_contact_id']     = $outbound->contact_id ?: $contact?->id;
+        } elseif ($contact) {
+            $updates['matched_contact_id'] = $contact->id;
         }
 
         if (!empty($updates)) {
@@ -253,8 +309,8 @@ class ImapSyncService
             $inboxMessage->refresh();
         }
 
-        // f. Create timeline events
-        $this->createTimelineEvents($inboxMessage, $account);
+        // f. Store inbound attachments, if any
+        $this->storeAttachments($imapMsg, $inboxMessage);
 
         // g. Cancel pending follow-ups if this looks like a reply
         if ($outbound || $inboxMessage->matched_opportunity_id) {
@@ -283,7 +339,7 @@ class ImapSyncService
 
         // 1. Match by In-Reply-To header against sent message_id
         if ($inReplyTo) {
-            $byHeader = (clone $query)->where('message_id', $inReplyTo)->first();
+            $byHeader = (clone $query)->where('message_id', EmailSendingService::normalizeMessageId($inReplyTo))->first();
             if ($byHeader) {
                 return $byHeader;
             }
@@ -291,11 +347,7 @@ class ImapSyncService
 
         // 2. Match by References header (any message_id in the thread)
         if ($references) {
-            $refIds = preg_split('/\s+/', trim($references));
-            foreach ($refIds as $refId) {
-                if (empty($refId)) {
-                    continue;
-                }
+            foreach (EmailSendingService::extractMessageIds($references) as $refId) {
                 $byRef = (clone $query)->where('message_id', $refId)->first();
                 if ($byRef) {
                     return $byRef;
@@ -367,6 +419,43 @@ class ImapSyncService
         }
     }
 
+    private function storeAttachments(\Webklex\PHPIMAP\Message $imapMsg, InboxMessage $inboxMessage): void
+    {
+        foreach ($imapMsg->getAttachments() as $attachment) {
+            try {
+                $fileName = $this->safeAttachmentName(
+                    (string) ($attachment->getName() ?: $attachment->getFilename() ?: 'attachment')
+                );
+                $directory = "inbox-attachments/{$inboxMessage->id}";
+                $path = "{$directory}/" . Str::uuid()->toString() . '_' . $fileName;
+                $content = (string) $attachment->getContent();
+
+                Storage::disk('local')->put($path, $content);
+
+                InboxAttachment::create([
+                    'inbox_message_id' => $inboxMessage->id,
+                    'file_name'        => $fileName,
+                    'file_path'        => $path,
+                    'mime_type'        => $attachment->getMimeType(),
+                    'file_size'        => strlen($content),
+                ]);
+            } catch (Throwable $e) {
+                Log::warning('ImapSyncService: failed to store inbound attachment', [
+                    'inbox_message_id' => $inboxMessage->id,
+                    'error'            => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    private function safeAttachmentName(string $fileName): string
+    {
+        $fileName = trim($fileName) ?: 'attachment';
+        $fileName = preg_replace('/[^A-Za-z0-9._-]/', '_', $fileName) ?: 'attachment';
+
+        return mb_substr($fileName, 0, 180);
+    }
+
     // -------------------------------------------------------------------------
     // IMAP header extraction helpers
     // -------------------------------------------------------------------------
@@ -382,7 +471,15 @@ class ImapSyncService
             return $from[0]?->mail ?? $from[0]?->email ?? '';
         }
 
-        return (string) $from;
+        $value = (string) $from;
+        if (preg_match('/<([^>]+@[^>]+)>/', $value, $matches)) {
+            return $matches[1];
+        }
+        if (preg_match('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $value, $matches)) {
+            return $matches[0];
+        }
+
+        return $value;
     }
 
     private function extractName(mixed $from): string
@@ -394,6 +491,11 @@ class ImapSyncService
 
         if (is_array($from)) {
             return $from[0]?->personal ?? $from[0]?->name ?? '';
+        }
+
+        $value = (string) $from;
+        if (preg_match('/^(.+?)\s*<[^>]+@[^>]+>/', $value, $matches)) {
+            return trim($matches[1], " \t\n\r\0\x0B\"'");
         }
 
         return '';

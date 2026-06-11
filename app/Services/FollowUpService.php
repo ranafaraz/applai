@@ -40,6 +40,7 @@ class FollowUpService
         $dueAt = Carbon::now()->addDays($daysDelay);
 
         return FollowUp::create([
+            'tenant_id'         => $originalEmail->tenant_id,
             'user_id'          => $originalEmail->user_id,
             'opportunity_id'   => $originalEmail->opportunity_id,
             'contact_id'       => $originalEmail->contact_id,
@@ -195,11 +196,15 @@ class FollowUpService
     {
         $contact = $followUp->contact;
 
-        return EmailMessage::create([
+        /** @var EmailMessage $emailMessage */
+        $emailMessage = EmailMessage::create([
+            'tenant_id'         => $followUp->tenant_id,
             'user_id'          => $followUp->user_id,
             'email_account_id' => $followUp->email_account_id,
             'contact_id'       => $followUp->contact_id,
             'opportunity_id'   => $followUp->opportunity_id,
+            'email_signature_id' => $followUp->email_signature_id,
+            'rendered_signature' => $followUp->rendered_signature,
             'subject'          => $followUp->subject,
             'body'             => $followUp->body,
             'to_email'         => $contact?->email ?? '',
@@ -210,6 +215,17 @@ class FollowUpService
             'follow_up_number' => $followUp->follow_up_number,
             'parent_message_id'=> $followUp->email_message_id,
         ]);
+
+        $syncData = $followUp->apiAttachments()
+            ->pluck('api_attachments.id')
+            ->mapWithKeys(fn (int $id) => [$id => ['added_by_user_id' => $followUp->user_id]])
+            ->all();
+
+        if (! empty($syncData)) {
+            $emailMessage->apiAttachments()->sync($syncData);
+        }
+
+        return $emailMessage;
     }
 
     private function buildFollowUpSubject(EmailMessage $original, int $followUpNumber): string

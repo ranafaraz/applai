@@ -23,7 +23,7 @@ class SuppressionListFactory extends Factory
         return [
             'user_id' => User::factory(),
             'email'   => fake()->unique()->safeEmail(),
-            'reason'  => fake()->randomElement(['unsubscribed', 'bounced', 'complaint', 'manual']),
+            'reason'  => fake()->randomElement(['unsubscribe', 'bounce', 'complaint', 'manual']),
             'notes'   => fake()->optional(0.4)->sentence(),
         ];
     }

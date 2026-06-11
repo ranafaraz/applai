@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\PositiveReplyNotification;
 use App\Notifications\ReplyReceivedNotification;
 use App\Services\ImapSyncService;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
 class HandleReplyReceived implements ShouldQueue
@@ -45,7 +46,7 @@ class HandleReplyReceived implements ShouldQueue
 
         // 2. Create timeline event on the matched Opportunity
         if ($inboxMessage->matched_opportunity_id) {
-            TimelineEvent::create([
+            $this->recordTimelineEvent([
                 'user_id'           => $inboxMessage->user_id,
                 'timelineable_id'   => $inboxMessage->matched_opportunity_id,
                 'timelineable_type' => Opportunity::class,
@@ -73,7 +74,7 @@ class HandleReplyReceived implements ShouldQueue
 
         // 4. Create timeline event on the matched Contact
         if ($inboxMessage->matched_contact_id) {
-            TimelineEvent::create([
+            $this->recordTimelineEvent([
                 'user_id'           => $inboxMessage->user_id,
                 'timelineable_id'   => $inboxMessage->matched_contact_id,
                 'timelineable_type' => Contact::class,
@@ -93,11 +94,42 @@ class HandleReplyReceived implements ShouldQueue
         // 6. Dispatch CRM notifications
         $user = User::find($inboxMessage->user_id);
         if ($user) {
-            DispatchCrmNotificationJob::dispatch($user, new ReplyReceivedNotification($inboxMessage));
+            if (! $this->notificationExists($user, ReplyReceivedNotification::TYPE, $inboxMessage->id)) {
+                DispatchCrmNotificationJob::dispatch($user, new ReplyReceivedNotification($inboxMessage));
+            }
 
-            if ($inboxMessage->sentiment === 'positive') {
+            if (
+                $inboxMessage->sentiment === 'positive'
+                && ! $this->notificationExists($user, PositiveReplyNotification::TYPE, $inboxMessage->id)
+            ) {
                 DispatchCrmNotificationJob::dispatch($user, new PositiveReplyNotification($inboxMessage));
             }
         }
+    }
+
+    private function recordTimelineEvent(array $payload): void
+    {
+        $inboxMessageId = $payload['metadata']['inbox_message_id'] ?? null;
+
+        $exists = TimelineEvent::query()
+            ->where('timelineable_id', $payload['timelineable_id'])
+            ->where('timelineable_type', $payload['timelineable_type'])
+            ->where('event_type', $payload['event_type'])
+            ->when($inboxMessageId, fn ($query) => $query->where('metadata->inbox_message_id', $inboxMessageId))
+            ->exists();
+
+        if (! $exists) {
+            TimelineEvent::create($payload);
+        }
+    }
+
+    private function notificationExists(User $user, string $type, int $inboxMessageId): bool
+    {
+        return DatabaseNotification::query()
+            ->where('notifiable_type', $user->getMorphClass())
+            ->where('notifiable_id', $user->id)
+            ->where('data->type', $type)
+            ->where('data->inbox_message_id', $inboxMessageId)
+            ->exists();
     }
 }
