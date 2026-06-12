@@ -4,6 +4,41 @@
 @section('page-title', 'Dashboard')
 
 @section('content')
+{{-- Getting-started checklist --}}
+@if (!empty($onboarding))
+<div class="bg-white border border-indigo-200 rounded-xl p-5 mb-6">
+    <div class="flex items-center justify-between mb-3">
+        <div>
+            <h2 class="text-sm font-semibold text-slate-800">Get set up</h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+                {{ collect($onboarding)->where('done', true)->count() }} of {{ count($onboarding) }} steps complete
+            </p>
+        </div>
+        <form method="POST" action="{{ route('onboarding.dismiss') }}">
+            @csrf
+            <button type="submit" class="text-xs text-slate-400 hover:text-slate-600">Dismiss</button>
+        </form>
+    </div>
+    <ul class="space-y-2">
+        @foreach ($onboarding as $step)
+        <li class="flex items-center gap-2 text-sm">
+            @if ($step['done'])
+                <svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span class="text-slate-400 line-through">{{ $step['label'] }}</span>
+            @else
+                <svg class="w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" stroke-width="2"/>
+                </svg>
+                <a href="{{ $step['url'] }}" class="text-indigo-600 hover:underline">{{ $step['label'] }}</a>
+            @endif
+        </li>
+        @endforeach
+    </ul>
+</div>
+@endif
+
 {{-- Filters --}}
 <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6">
     <form method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap gap-3 items-end">

@@ -85,6 +85,8 @@ class DashboardController extends Controller
             'negative' => $sentimentBreakdown['negative'] ?? 0,
         ];
 
+        $onboarding = $this->onboardingChecklist($user, $emailAccounts->isNotEmpty());
+
         return view('dashboard.index', compact(
             'stats',
             'filters',
@@ -95,6 +97,52 @@ class DashboardController extends Controller
             'funnelData',
             'unreadNotifications',
             'recentNotifications',
+            'onboarding',
         ));
+    }
+
+    /**
+     * Getting-started checklist for new workspaces; hidden once every step
+     * is complete or the user dismisses it.
+     */
+    private function onboardingChecklist($user, bool $hasEmailAccount): ?array
+    {
+        if ($user->setting?->onboarding_dismissed_at) {
+            return null;
+        }
+
+        $steps = [
+            'verify_email' => [
+                'label' => 'Verify your email address',
+                'done'  => $user->hasVerifiedEmail(),
+                'url'   => route('verification.notice'),
+            ],
+            'email_account' => [
+                'label' => 'Connect an email account for outreach',
+                'done'  => $hasEmailAccount,
+                'url'   => route('email-accounts.create'),
+            ],
+            'first_contact' => [
+                'label' => 'Add or import your first contacts',
+                'done'  => $this->tenantQuery(\App\Models\Contact::class)->exists(),
+                'url'   => route('contacts.create'),
+            ],
+            'first_opportunity' => [
+                'label' => 'Create your first opportunity pipeline entry',
+                'done'  => $this->tenantQuery(\App\Models\Opportunity::class)->exists(),
+                'url'   => route('opportunities.create'),
+            ],
+            'social_account' => [
+                'label' => 'Connect LinkedIn to publish from Social Studio',
+                'done'  => \App\Models\SocialAccount::where('user_id', $user->id)->where('status', 'connected')->exists(),
+                'url'   => route('social-studio.connections'),
+            ],
+        ];
+
+        if (collect($steps)->every(fn ($step) => $step['done'])) {
+            return null;
+        }
+
+        return $steps;
     }
 }

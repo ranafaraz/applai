@@ -77,6 +77,14 @@ Route::middleware(['auth', 'tenant_active'])->group(function () {
     // Dashboard (named route moved to /dashboard; / is now the public landing page)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    Route::post('onboarding/dismiss', function (\Illuminate\Http\Request $request) {
+        \App\Models\UserSetting::updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['onboarding_dismissed_at' => now()],
+        );
+        return back();
+    })->name('onboarding.dismiss');
+
     // ---------------------------------------------------------------------------
     // Billing (admin-only; EnsureTenantActive lets billing.* through so an
     // expired trial can still reach the upgrade page)
@@ -163,8 +171,25 @@ Route::middleware(['auth', 'tenant_active'])->group(function () {
     // ---------------------------------------------------------------------------
     Route::get('emails/template', [EmailMessageController::class, 'getTemplate'])
         ->name('emails.get-template');
-    Route::get('compose', [EmailMessageController::class, 'compose'])->name('compose');
-    Route::resource('emails', EmailMessageController::class)->except(['create'])->whereNumber('email');
+    // Sending email is the abuse vector for a mail product, so composing
+    // requires a verified address; the rest of the app stays usable.
+    Route::middleware('verified')->group(function () {
+        Route::get('compose', [EmailMessageController::class, 'compose'])->name('compose');
+        Route::resource('emails', EmailMessageController::class)->except(['create'])->whereNumber('email');
+    });
+
+    // ---------------------------------------------------------------------------
+    // Email verification
+    // ---------------------------------------------------------------------------
+    Route::view('email/verify', 'auth.verify-email')->name('verification.notice');
+    Route::get('email/verify/{id}/{hash}', function (\Illuminate\Foundation\Auth\EmailVerificationRequest $request) {
+        $request->fulfill();
+        return redirect()->route('dashboard')->with('success', 'Email verified — you can now send email.');
+    })->middleware('signed')->name('verification.verify');
+    Route::post('email/verification-notification', function (\Illuminate\Http\Request $request) {
+        $request->user()->sendEmailVerificationNotification();
+        return back()->with('success', 'Verification link sent.');
+    })->middleware('throttle:6,1')->name('verification.send');
 
     // ---------------------------------------------------------------------------
     // Inbox
