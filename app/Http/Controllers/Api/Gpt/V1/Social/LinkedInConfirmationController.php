@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api\Gpt\V1\Social;
 use App\Http\Controllers\Api\Gpt\V1\GptController;
 use App\Jobs\PublishLinkedInPostJob;
 use App\Models\SocialAuditEvent;
-use App\Models\SocialPost;
 use App\Models\SocialPostConfirmation;
+use App\Services\Social\SocialPostSchedulerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -30,12 +30,12 @@ class LinkedInConfirmationController extends GptController
     }
 
     /**
-     * Approve a pending confirmation.
-     * Only the CRM UI (web session) should call this — not the GPT API.
-     * The GPT controller is provided here for completeness but the web
-     * controller in SocialStudio handles the real approval flow.
+     * Approve a pending confirmation. Approval applies the confirmed action:
+     * publish_now dispatches the publish job immediately; schedule moves the
+     * post and its target into the scheduled state consumed by the
+     * social:publish-due-posts scheduler.
      */
-    public function approve(Request $request, string $token): JsonResponse
+    public function approve(Request $request, string $token, SocialPostSchedulerService $scheduler): JsonResponse
     {
         $user = $this->apiUser($request);
 
@@ -74,12 +74,42 @@ class LinkedInConfirmationController extends GptController
 
         // For publish_now, immediately dispatch the job
         if ($confirmation->action === 'publish_now') {
-            $target = $this->resolveOrCreateTarget($post, $user->id);
+            $target = $scheduler->ensureLinkedInTarget($post, $user->id);
             if ($target) {
                 PublishLinkedInPostJob::dispatch($target->id, $user->id);
                 $confirmation->update(['status' => 'used']);
                 return response()->json(['message' => 'Approved and publish job queued.', 'action' => 'publish_now']);
             }
+        }
+
+        // For schedule, hand the approved schedule to the publishing pipeline:
+        // mark the post approved+scheduled and mirror the schedule onto a
+        // scheduled target so social:publish-due-posts picks it up — same
+        // state the web Social Studio flow produces.
+        if ($confirmation->action === 'schedule' && $confirmation->scheduled_at) {
+            $target = $scheduler->ensureLinkedInTarget($post, $user->id);
+            if (! $target) {
+                return response()->json(['error' => 'No connected LinkedIn account available to schedule this post.'], 422);
+            }
+
+            $scheduler->applyApproval($post, $user->id, $confirmation->scheduled_at, $confirmation->timezone);
+            $confirmation->update(['status' => 'used']);
+
+            SocialAuditEvent::log(
+                $user->id, 'publish_schedule_applied', 'success',
+                null, $post->id,
+                ['token' => $token, 'scheduled_at' => $confirmation->scheduled_at->toIso8601String()],
+                [],
+                null,
+                $token,
+                $user->id,
+            );
+
+            return response()->json([
+                'message'      => 'Approved and scheduled for publishing.',
+                'action'       => 'schedule',
+                'scheduled_at' => $confirmation->scheduled_at->toIso8601String(),
+            ]);
         }
 
         return response()->json([
@@ -118,31 +148,6 @@ class LinkedInConfirmationController extends GptController
             ->where('status', 'pending')
             ->whereHas('post', fn ($q) => $q->where('user_id', $userId))
             ->first();
-    }
-
-    private function resolveOrCreateTarget(SocialPost $post, int $userId): ?\App\Models\SocialPostTarget
-    {
-        $existing = $post->targets()->first();
-        if ($existing && ! $existing->isPublished()) {
-            return $existing;
-        }
-
-        $account = \App\Models\SocialAccount::where('user_id', $userId)
-            ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
-            ->where('status', 'connected')
-            ->orderByDesc('is_default')
-            ->first();
-
-        if (! $account) {
-            return null;
-        }
-
-        return \App\Models\SocialPostTarget::create([
-            'social_post_id'    => $post->id,
-            'social_account_id' => $account->id,
-            'platform'          => 'linkedin',
-            'status'            => 'pending',
-        ]);
     }
 
     private function formatConfirmation(SocialPostConfirmation $c): array
