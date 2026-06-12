@@ -22,6 +22,8 @@ class ReportController extends Controller
         $emailsSent      = $this->tenantQuery(EmailMessage::class)->where('status', 'sent')->whereBetween('sent_at', [$dateFrom, $dateTo])->count();
         $repliesReceived = $this->tenantQuery(InboxMessage::class)->whereNotNull('matched_outbound_id')->whereBetween('received_at', [$dateFrom, $dateTo])->count();
         $failedSends     = $this->tenantQuery(EmailMessage::class)->where('status', 'failed')->whereBetween('failed_at', [$dateFrom, $dateTo])->count();
+        $emailsOpened    = $this->tenantQuery(EmailMessage::class)->where('status', 'sent')->whereBetween('sent_at', [$dateFrom, $dateTo])->whereNotNull('opened_at')->count();
+        $emailsClicked   = $this->tenantQuery(EmailMessage::class)->where('status', 'sent')->whereBetween('sent_at', [$dateFrom, $dateTo])->whereNotNull('clicked_at')->count();
         $responseRate    = $emailsSent > 0 ? round($repliesReceived / $emailsSent * 100, 1) . '%' : '0%';
 
         $stats = compact('emailsSent', 'repliesReceived', 'failedSends', 'responseRate');
@@ -29,6 +31,10 @@ class ReportController extends Controller
         $stats['replies_received'] = $repliesReceived;
         $stats['failed_sends']     = $failedSends;
         $stats['response_rate']    = $responseRate;
+        $stats['emails_opened']    = $emailsOpened;
+        $stats['emails_clicked']   = $emailsClicked;
+        $stats['open_rate']        = $emailsSent > 0 ? round($emailsOpened / $emailsSent * 100, 1) . '%' : '0%';
+        $stats['click_rate']       = $emailsSent > 0 ? round($emailsClicked / $emailsSent * 100, 1) . '%' : '0%';
 
         $funnel = $this->tenantQuery(Opportunity::class)
             ->select('status', DB::raw('COUNT(*) as count'))

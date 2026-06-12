@@ -20,8 +20,10 @@ use Throwable;
 
 class EmailSendingService
 {
-    public function __construct(private PlanLimitsService $planLimits)
-    {
+    public function __construct(
+        private PlanLimitsService $planLimits,
+        private EmailTrackingService $tracking,
+    ) {
     }
 
     /**
@@ -99,7 +101,9 @@ class EmailSendingService
                 $emailMessage->to_name ?? $emailMessage->to_email
             ));
             $mime->subject($emailMessage->subject);
-            $mime->html($emailMessage->body);
+            // Open/click tracking markup goes into the outgoing MIME only;
+            // the stored body stays clean.
+            $mime->html($this->tracking->prepareHtml($emailMessage, $emailMessage->body));
             $mime->text(strip_tags($emailMessage->body));
 
             $messageId = $emailMessage->message_id

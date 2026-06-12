@@ -49,6 +49,9 @@ class EmailMessage extends Model
         'follow_up_number',
         'parent_message_id',
         'opened_at',
+        'clicked_at',
+        'open_count',
+        'click_count',
     ];
 
     protected function casts(): array
@@ -62,6 +65,9 @@ class EmailMessage extends Model
             'sent_at'          => 'datetime',
             'failed_at'        => 'datetime',
             'opened_at'        => 'datetime',
+            'clicked_at'       => 'datetime',
+            'open_count'       => 'integer',
+            'click_count'      => 'integer',
         ];
     }
 
@@ -97,6 +103,11 @@ class EmailMessage extends Model
     public function emailSignature(): BelongsTo
     {
         return $this->belongsTo(EmailSignature::class);
+    }
+
+    public function linkClicks(): HasMany
+    {
+        return $this->hasMany(EmailLinkClick::class);
     }
 
     public function attachments(): HasMany

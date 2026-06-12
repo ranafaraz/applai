@@ -16,6 +16,7 @@ use App\Http\Controllers\EmailAccountController;
 use App\Http\Controllers\EmailMessageController;
 use App\Http\Controllers\EmailSignatureController;
 use App\Http\Controllers\EmailTemplateController;
+use App\Http\Controllers\EmailTrackingController;
 use App\Http\Controllers\FollowUpController;
 use App\Http\Controllers\InboxMessageController;
 use App\Http\Controllers\LookupController;
@@ -45,6 +46,16 @@ Route::get('/',        [LandingController::class, 'index'])->name('home');
 Route::get('/privacy', [LandingController::class, 'privacy'])->name('privacy');
 Route::get('/terms',   [LandingController::class, 'terms'])->name('terms');
 Route::view('/pricing', 'billing.pricing')->name('pricing');
+
+// ---------------------------------------------------------------------------
+// Email tracking endpoints (hit by recipients' mail clients; signed URLs)
+// ---------------------------------------------------------------------------
+Route::middleware('signed')->group(function () {
+    Route::get('/t/o/{message}', [EmailTrackingController::class, 'open'])
+        ->whereNumber('message')->name('track.open');
+    Route::get('/t/c/{message}', [EmailTrackingController::class, 'click'])
+        ->whereNumber('message')->name('track.click');
+});
 
 // ---------------------------------------------------------------------------
 // Guest routes
