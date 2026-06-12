@@ -12,12 +12,13 @@ use Illuminate\View\View;
 
 class TeamController extends Controller
 {
-    public function index(): View
+    public function index(PlanLimitsService $limits): View
     {
-        $tenant = auth()->user()->tenant;
-        $users  = $tenant->users()->latest()->get();
+        $tenant    = auth()->user()->tenant;
+        $users     = $tenant->users()->latest()->get();
+        $userLimit = $limits->limit($tenant, 'users');
 
-        return view('settings.team', compact('tenant', 'users'));
+        return view('settings.team', compact('tenant', 'users', 'userLimit'));
     }
 
     public function store(Request $request, PlanLimitsService $limits): RedirectResponse

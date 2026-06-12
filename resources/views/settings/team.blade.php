@@ -8,20 +8,20 @@
         <div>
             <h1 class="text-lg font-semibold text-gray-900">Team Management</h1>
             <p class="text-sm text-gray-500 mt-0.5">
-                {{ $users->count() }} / {{ $tenant->max_users }} users on your <strong>{{ $tenant->planLabel() }}</strong> plan
+                {{ $users->count() }} / {{ $userLimit ?? '∞' }} users on your <strong>{{ $tenant->planLabel() }}</strong> plan
             </p>
         </div>
     </div>
 
     {{-- User limit warning --}}
-    @if ($users->count() >= $tenant->max_users)
+    @if ($userLimit !== null && $users->count() >= $userLimit)
     <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800">
-        You've reached your user limit ({{ $tenant->max_users }}). Contact support to upgrade your plan.
+        You've reached your plan's user limit ({{ $userLimit }}). <a href="{{ route('billing.index') }}" class="underline font-medium">Upgrade your plan</a> to add more seats.
     </div>
     @endif
 
     {{-- Invite user --}}
-    @if ($users->count() < $tenant->max_users)
+    @if ($userLimit === null || $users->count() < $userLimit)
     <div class="bg-white rounded-xl border border-gray-200 p-5">
         <h2 class="text-sm font-semibold text-gray-700 mb-4">Add Team Member</h2>
         <form method="POST" action="{{ route('team.store') }}" class="grid grid-cols-2 gap-3">
