@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\DataPrivacyController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ContactImportController;
@@ -82,6 +83,18 @@ Route::middleware(['auth', 'tenant_active'])->group(function () {
     // ---------------------------------------------------------------------------
     // Members can see the trial-ended page; manage actions are admin-only.
     Route::get('billing/expired', [BillingController::class, 'expired'])->name('billing.expired');
+
+    // ---------------------------------------------------------------------------
+    // Data & privacy: export-anytime (all plans) and account deletion
+    // ---------------------------------------------------------------------------
+    Route::get('data-export/{file}', [DataPrivacyController::class, 'download'])
+        ->middleware('signed')->name('data-export.download');
+    Route::middleware('require_admin')->group(function () {
+        Route::post('settings/data-export', [DataPrivacyController::class, 'requestExport'])
+            ->name('settings.data-export');
+        Route::post('settings/delete-account', [DataPrivacyController::class, 'destroyAccount'])
+            ->name('settings.delete-account');
+    });
 
     Route::middleware('require_admin')->prefix('billing')->name('billing.')->group(function () {
         Route::get('/', [BillingController::class, 'index'])->name('index');

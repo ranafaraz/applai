@@ -20,3 +20,6 @@ Schedule::command('social:publish-due-posts')->everyFiveMinutes();
 // Sync LinkedIn analytics: recent posts every hour, full sweep daily at 03:00
 Schedule::command('social:sync-linkedin-analytics --hours=72')->hourly();
 Schedule::command('social:sync-linkedin-analytics --hours=720')->dailyAt('03:00');
+
+// Hard-delete tenants whose 30-day deletion grace period has elapsed
+Schedule::command('tenants:purge-deleted')->dailyAt('02:00');

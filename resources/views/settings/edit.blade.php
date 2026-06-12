@@ -68,5 +68,43 @@
             </div>
         </form>
     </div>
+
+    @if (auth()->user()->isAdmin())
+    {{-- Data & privacy --}}
+    <div class="bg-white rounded-xl border border-gray-200 p-5 mt-6 space-y-5">
+        <div>
+            <h2 class="text-sm font-semibold text-gray-700">Data &amp; privacy</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Your data is yours — export everything, on any plan, at any time.</p>
+        </div>
+
+        <form method="POST" action="{{ route('settings.data-export') }}">
+            @csrf
+            <button type="submit" class="border border-gray-300 hover:bg-gray-50 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg">
+                Export all my data (ZIP of JSON + CSV)
+            </button>
+            <p class="text-xs text-slate-400 mt-1.5">You'll receive an in-app notification with a download link when it's ready.</p>
+        </form>
+
+        <div class="border-t border-gray-100 pt-4">
+            <p class="text-sm font-medium text-red-700">Delete account</p>
+            <p class="text-xs text-slate-500 mt-0.5 mb-3">
+                Marks your workspace for deletion. All data is permanently removed after a 30-day grace period. This cannot be undone.
+            </p>
+            <form method="POST" action="{{ route('settings.delete-account') }}"
+                  onsubmit="return confirm('Permanently delete this workspace and all of its data after 30 days?');"
+                  class="flex items-center gap-2">
+                @csrf
+                <input type="password" name="password" placeholder="Confirm your password" required
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg">
+                    Delete account
+                </button>
+            </form>
+            @error('password')
+                <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+            @enderror
+        </div>
+    </div>
+    @endif
 </div>
 @endsection

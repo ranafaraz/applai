@@ -15,11 +15,12 @@ class Tenant extends Model
 
     protected $fillable = [
         'name', 'slug', 'email', 'plan', 'status',
-        'max_users', 'trial_ends_at', 'notes',
+        'max_users', 'trial_ends_at', 'deletion_requested_at', 'notes',
     ];
 
     protected $casts = [
-        'trial_ends_at' => 'datetime',
+        'trial_ends_at'         => 'datetime',
+        'deletion_requested_at' => 'datetime',
     ];
 
     protected static function boot(): void
