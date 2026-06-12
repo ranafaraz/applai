@@ -8,6 +8,7 @@ use App\Models\SocialActivityLog;
 use App\Models\SocialMediaAsset;
 use App\Models\SocialPost;
 use App\Models\SocialPostTarget;
+use App\Services\Social\SocialPostSchedulerService;
 use App\Services\Social\SocialPublisherService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -238,22 +239,13 @@ class PostController extends Controller
         return back()->with('success', 'Post submitted for review.');
     }
 
-    public function approve(Request $request, int $id): RedirectResponse
+    public function approve(Request $request, int $id, SocialPostSchedulerService $scheduler): RedirectResponse
     {
         $post = SocialPost::where('user_id', $request->user()->id)->findOrFail($id);
 
-        $post->update([
-            'approval_status' => 'approved',
-            'approved_at'     => now(),
-            'approved_by'     => $request->user()->id,
-            'status'          => $post->scheduled_at ? 'scheduled' : 'approved',
-        ]);
-
-        // Mirror approval to any targets
-        $post->targets()->whereNot('status', 'published')->update([
-            'status' => $post->scheduled_at ? 'scheduled' : 'approved',
-            'scheduled_at' => $post->scheduled_at,
-        ]);
+        // Marks the post approved and mirrors the schedule onto targets —
+        // shared with the GPT/API confirmation flow.
+        $scheduler->applyApproval($post, $request->user()->id);
 
         $user = $request->user();
         SocialActivityLog::record($user->id, $user->tenant_id, 'post_approved', SocialPost::class, $post->id, 'Post approved for publication');

@@ -2,19 +2,25 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Laravel\Paddle\Billable;
 
 class Tenant extends Model
 {
+    use Billable;
+    use HasFactory;
+
     protected $fillable = [
         'name', 'slug', 'email', 'plan', 'status',
-        'max_users', 'trial_ends_at', 'notes',
+        'max_users', 'trial_ends_at', 'deletion_requested_at', 'notes',
     ];
 
     protected $casts = [
-        'trial_ends_at' => 'datetime',
+        'trial_ends_at'         => 'datetime',
+        'deletion_requested_at' => 'datetime',
     ];
 
     protected static function boot(): void
@@ -55,13 +61,21 @@ class Tenant extends Model
             && $this->trial_ends_at->isPast();
     }
 
+    /** Customer name sent to Paddle when a checkout is created. */
+    public function paddleName(): ?string
+    {
+        return $this->name;
+    }
+
+    /** Customer email sent to Paddle; falls back to the first admin's email. */
+    public function paddleEmail(): ?string
+    {
+        return $this->email ?: $this->admins()->value('email');
+    }
+
     public function planLabel(): string
     {
-        return match ($this->plan) {
-            'pro'        => 'Pro',
-            'enterprise' => 'Enterprise',
-            default      => 'Free',
-        };
+        return config("plans.plans.{$this->plan}.label", 'Free');
     }
 
     public function statusBadge(): string

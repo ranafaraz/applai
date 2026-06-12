@@ -5,6 +5,8 @@ use App\Http\Controllers\Admin\TenantController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BillingController;
+use App\Http\Controllers\DataPrivacyController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\ContactImportController;
@@ -15,6 +17,7 @@ use App\Http\Controllers\EmailAccountController;
 use App\Http\Controllers\EmailMessageController;
 use App\Http\Controllers\EmailSignatureController;
 use App\Http\Controllers\EmailTemplateController;
+use App\Http\Controllers\EmailTrackingController;
 use App\Http\Controllers\FollowUpController;
 use App\Http\Controllers\InboxMessageController;
 use App\Http\Controllers\LookupController;
@@ -43,6 +46,17 @@ use Illuminate\Support\Facades\Route;
 Route::get('/',        [LandingController::class, 'index'])->name('home');
 Route::get('/privacy', [LandingController::class, 'privacy'])->name('privacy');
 Route::get('/terms',   [LandingController::class, 'terms'])->name('terms');
+Route::view('/pricing', 'billing.pricing')->name('pricing');
+
+// ---------------------------------------------------------------------------
+// Email tracking endpoints (hit by recipients' mail clients; signed URLs)
+// ---------------------------------------------------------------------------
+Route::middleware('signed')->group(function () {
+    Route::get('/t/o/{message}', [EmailTrackingController::class, 'open'])
+        ->whereNumber('message')->name('track.open');
+    Route::get('/t/c/{message}', [EmailTrackingController::class, 'click'])
+        ->whereNumber('message')->name('track.click');
+});
 
 // ---------------------------------------------------------------------------
 // Guest routes
@@ -57,11 +71,46 @@ Route::middleware('guest')->group(function () {
 // ---------------------------------------------------------------------------
 // Authenticated routes
 // ---------------------------------------------------------------------------
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'tenant_active'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     // Dashboard (named route moved to /dashboard; / is now the public landing page)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::post('onboarding/dismiss', function (\Illuminate\Http\Request $request) {
+        \App\Models\UserSetting::updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['onboarding_dismissed_at' => now()],
+        );
+        return back();
+    })->name('onboarding.dismiss');
+
+    // ---------------------------------------------------------------------------
+    // Billing (admin-only; EnsureTenantActive lets billing.* through so an
+    // expired trial can still reach the upgrade page)
+    // ---------------------------------------------------------------------------
+    // Members can see the trial-ended page; manage actions are admin-only.
+    Route::get('billing/expired', [BillingController::class, 'expired'])->name('billing.expired');
+
+    // ---------------------------------------------------------------------------
+    // Data & privacy: export-anytime (all plans) and account deletion
+    // ---------------------------------------------------------------------------
+    Route::get('data-export/{file}', [DataPrivacyController::class, 'download'])
+        ->middleware('signed')->name('data-export.download');
+    Route::middleware('require_admin')->group(function () {
+        Route::post('settings/data-export', [DataPrivacyController::class, 'requestExport'])
+            ->name('settings.data-export');
+        Route::post('settings/delete-account', [DataPrivacyController::class, 'destroyAccount'])
+            ->name('settings.delete-account');
+    });
+
+    Route::middleware('require_admin')->prefix('billing')->name('billing.')->group(function () {
+        Route::get('/', [BillingController::class, 'index'])->name('index');
+        Route::get('/checkout/{plan}/{period?}', [BillingController::class, 'checkout'])->name('checkout');
+        Route::post('/cancel', [BillingController::class, 'cancel'])->name('cancel');
+        Route::post('/resume', [BillingController::class, 'resume'])->name('resume');
+        Route::post('/continue-free', [BillingController::class, 'continueFree'])->name('continue-free');
+    });
 
     // ---------------------------------------------------------------------------
     // Email Accounts
@@ -122,8 +171,25 @@ Route::middleware('auth')->group(function () {
     // ---------------------------------------------------------------------------
     Route::get('emails/template', [EmailMessageController::class, 'getTemplate'])
         ->name('emails.get-template');
-    Route::get('compose', [EmailMessageController::class, 'compose'])->name('compose');
-    Route::resource('emails', EmailMessageController::class)->except(['create'])->whereNumber('email');
+    // Sending email is the abuse vector for a mail product, so composing
+    // requires a verified address; the rest of the app stays usable.
+    Route::middleware('verified')->group(function () {
+        Route::get('compose', [EmailMessageController::class, 'compose'])->name('compose');
+        Route::resource('emails', EmailMessageController::class)->except(['create'])->whereNumber('email');
+    });
+
+    // ---------------------------------------------------------------------------
+    // Email verification
+    // ---------------------------------------------------------------------------
+    Route::view('email/verify', 'auth.verify-email')->name('verification.notice');
+    Route::get('email/verify/{id}/{hash}', function (\Illuminate\Foundation\Auth\EmailVerificationRequest $request) {
+        $request->fulfill();
+        return redirect()->route('dashboard')->with('success', 'Email verified — you can now send email.');
+    })->middleware('signed')->name('verification.verify');
+    Route::post('email/verification-notification', function (\Illuminate\Http\Request $request) {
+        $request->user()->sendEmailVerificationNotification();
+        return back()->with('success', 'Verification link sent.');
+    })->middleware('throttle:6,1')->name('verification.send');
 
     // ---------------------------------------------------------------------------
     // Inbox
@@ -218,7 +284,9 @@ Route::middleware('auth')->group(function () {
     // Notifications
     // ---------------------------------------------------------------------------
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    // Notification ids are UUIDs — override the global numeric {id} pattern.
+    Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])
+        ->where('id', '[A-Za-z0-9\-]+')->name('notifications.read');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('notifications/preferences', [NotificationController::class, 'updatePreference'])->name('notifications.preferences');
 });
@@ -226,7 +294,7 @@ Route::middleware('auth')->group(function () {
 // ---------------------------------------------------------------------------
 // Social Studio
 // ---------------------------------------------------------------------------
-Route::middleware('auth')->prefix('social-studio')->name('social-studio.')->group(function () {
+Route::middleware(['auth', 'tenant_active'])->prefix('social-studio')->name('social-studio.')->group(function () {
     Route::get('/', [SocialDashboardController::class, 'index'])->name('dashboard');
 
     // LinkedIn OAuth apps (developer credentials)
@@ -294,7 +362,7 @@ Route::get('/openapi/social-gpt-actions.json', [OpenApiController::class, 'socia
 // ---------------------------------------------------------------------------
 // Integration / API key management (requires auth)
 // ---------------------------------------------------------------------------
-Route::middleware('auth')->prefix('settings/integrations')->name('integrations.')->group(function () {
+Route::middleware(['auth', 'tenant_active'])->prefix('settings/integrations')->name('integrations.')->group(function () {
     Route::get('/', [IntegrationController::class, 'index'])->name('index');
     Route::post('/clients', [IntegrationController::class, 'createClient'])->name('clients.store');
     Route::post('/clients/{client}/tokens', [IntegrationController::class, 'createToken'])->name('tokens.store');

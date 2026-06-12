@@ -9,6 +9,7 @@ use App\Models\Lookup;
 use App\Models\Opportunity;
 use App\Models\SuppressionList;
 use App\Models\Tag;
+use App\Services\PlanLimitsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,8 +54,13 @@ class ContactController extends Controller
         return view('contacts.create', compact('tags', 'opportunities'));
     }
 
-    public function store(StoreContactRequest $request): RedirectResponse
+    public function store(StoreContactRequest $request, PlanLimitsService $limits): RedirectResponse
     {
+        $tenant = $request->user()->tenant;
+        if ($tenant && ! $limits->canAdd($tenant, 'contacts')) {
+            return back()->withInput()->withErrors(['plan' => $limits->upgradeMessage('contacts')]);
+        }
+
         $data           = $request->validated();
         $tagIds         = $data['tags'] ?? [];
         $opportunityIds = $data['opportunities'] ?? [];
@@ -147,7 +153,7 @@ class ContactController extends Controller
      * Lightweight JSON endpoint to create a contact inline from an
      * opportunity form modal. Returns the new contact's id + display fields.
      */
-    public function quickStore(Request $request): JsonResponse
+    public function quickStore(Request $request, PlanLimitsService $limits): JsonResponse
     {
         $data = $request->validate([
             'first_name' => 'required|string|max:255',
@@ -168,6 +174,11 @@ class ContactController extends Controller
                 'sublabel' => $existing->email . ($existing->company ? ' · ' . $existing->company : ''),
                 'created'  => false,
             ]);
+        }
+
+        $tenant = $request->user()->tenant;
+        if ($tenant && ! $limits->canAdd($tenant, 'contacts')) {
+            return response()->json(['error' => $limits->upgradeMessage('contacts')], 422);
         }
 
         $data['email']  = strtolower($data['email']);

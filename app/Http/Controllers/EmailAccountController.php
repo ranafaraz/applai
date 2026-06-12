@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateEmailAccountRequest;
 use App\Models\EmailAccount;
 use App\Services\EmailSendingService;
 use App\Services\ImapSyncService;
+use App\Services\PlanLimitsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,8 +36,13 @@ class EmailAccountController extends Controller
         return view('email-accounts.create');
     }
 
-    public function store(StoreEmailAccountRequest $request): RedirectResponse
+    public function store(StoreEmailAccountRequest $request, PlanLimitsService $limits): RedirectResponse
     {
+        $tenant = $request->user()->tenant;
+        if ($tenant && ! $limits->canAdd($tenant, 'email_accounts')) {
+            return back()->withInput()->withErrors(['plan' => $limits->upgradeMessage('email_accounts')]);
+        }
+
         $data = $request->validated();
 
         $data['imap_host'] ??= '';

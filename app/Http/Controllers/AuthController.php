@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\UserSetting;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -68,7 +69,9 @@ class AuthController extends Controller
             'email'         => $data['email'],
             'plan'          => 'free',
             'status'        => 'trial',
-            'max_users'     => 3,
+            // Seat count is plan-driven (config/plans.php); max_users only
+            // acts as a super-admin upward override.
+            'max_users'     => 1,
             'trial_ends_at' => now()->addDays(14),
         ]);
 
@@ -89,6 +92,8 @@ class AuthController extends Controller
             'notify_on_reply'        => true,
             'notify_on_bounce'       => true,
         ]);
+
+        event(new Registered($user));
 
         Auth::login($user);
         $request->session()->regenerate();

@@ -15,14 +15,16 @@ class UserSetting extends Model
         'default_email_account_id',
         'notify_on_reply',
         'notify_on_bounce',
+        'onboarding_dismissed_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'default_follow_up_days' => 'integer',
-            'notify_on_reply'        => 'boolean',
-            'notify_on_bounce'       => 'boolean',
+            'default_follow_up_days'  => 'integer',
+            'notify_on_reply'         => 'boolean',
+            'notify_on_bounce'        => 'boolean',
+            'onboarding_dismissed_at' => 'datetime',
         ];
     }
 

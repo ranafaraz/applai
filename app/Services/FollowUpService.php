@@ -7,6 +7,7 @@ use App\Models\FollowUp;
 use App\Models\InboxMessage;
 use App\Models\Opportunity;
 use App\Models\SuppressionList;
+use App\Models\Tenant;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -15,6 +16,7 @@ class FollowUpService
 {
     public function __construct(
         private readonly EmailSendingService $emailSendingService,
+        private readonly PlanLimitsService $planLimits,
     ) {}
 
     /**
@@ -68,7 +70,21 @@ class FollowUpService
             ->where('due_at', '<=', now())
             ->get();
 
+        // Auto-sending follow-ups is a paid feature; for tenants without it
+        // the due follow-up stays pending as a manual reminder in the UI.
+        $featureByTenant = [];
+
         foreach ($dueFollowUps as $followUp) {
+            if ($followUp->tenant_id) {
+                $featureByTenant[$followUp->tenant_id] ??= ($tenant = Tenant::find($followUp->tenant_id))
+                    ? $this->planLimits->hasFeature($tenant, 'follow_up_automation')
+                    : true;
+
+                if (! $featureByTenant[$followUp->tenant_id]) {
+                    continue;
+                }
+            }
+
             try {
                 $this->processSingleFollowUp($followUp, $maxFollowUps);
             } catch (Throwable $e) {

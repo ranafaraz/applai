@@ -19,7 +19,7 @@
     </div>
 
     {{-- Row 1: Summary stats --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
             <p class="text-3xl font-bold text-indigo-600">{{ $stats['emails_sent'] ?? 0 }}</p>
             <p class="text-xs text-slate-500 mt-1">Emails Sent</p>
@@ -31,6 +31,14 @@
         <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
             <p class="text-3xl font-bold text-blue-600">{{ $stats['response_rate'] ?? '0%' }}</p>
             <p class="text-xs text-slate-500 mt-1">Response Rate</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
+            <p class="text-3xl font-bold text-sky-600">{{ $stats['open_rate'] ?? '0%' }}</p>
+            <p class="text-xs text-slate-500 mt-1">Open Rate</p>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
+            <p class="text-3xl font-bold text-violet-600">{{ $stats['click_rate'] ?? '0%' }}</p>
+            <p class="text-xs text-slate-500 mt-1">Click Rate</p>
         </div>
         <div class="bg-white border border-slate-200 rounded-xl p-4 text-center">
             <p class="text-3xl font-bold text-red-500">{{ $stats['failed_sends'] ?? 0 }}</p>

@@ -183,13 +183,30 @@ Publishing is rejected when:
 
 ---
 
-## Known Workflow Hardening Item: GPT-Scheduled Social Posts
+## SaaS Features
 
-The browser-based Social Studio scheduling workflow sets post targets to `scheduled`, which is the state consumed by the `social:publish-due-posts` scheduler.
+### Plans & Billing (Paddle)
 
-The current GPT/API confirmation workflow accepts a `schedule` confirmation request, but its approval handler does not visibly copy the approved schedule into a scheduled `SocialPostTarget` in the same way as the web workflow. Since the scheduler only processes due targets already marked `scheduled`, schedules created exclusively through the GPT/API flow should be verified in the CRM UI until this handoff is completed and protected by integration tests.
+Subscription billing is handled by [Laravel Cashier-Paddle](https://laravel.com/docs/cashier-paddle) with the **Tenant** as the billable entity. Three tiers are defined in `config/plans.php` (the single source of truth for limits and feature gates):
 
-This limitation should be fixed without weakening the approval requirement.
+| Plan | Price | Highlights |
+|---|---|---|
+| Free | $0 | 100 contacts, 1 email account, manual follow-ups, full export |
+| Pro | $19/mo | Unlimited contacts, 3 email accounts, follow-up automation, open/click tracking, API/GPT/MCP access |
+| Team (stored as `enterprise`) | $29/seat/mo | Multi-user, approval workflows, higher sending limits |
+
+- New signups get a 14-day Pro trial (no card). Expired trials land on `/billing/expired` with checkout or a "continue on Free" downgrade — nobody is locked out of their data.
+- Webhooks sync `tenants.plan/status` automatically (`SyncTenantPlanFromPaddle`).
+- Configure `PADDLE_*` variables from `.env.example` (sandbox first), create Paddle prices, and set the `PADDLE_PRICE_*` ids.
+- Limits are enforced centrally via `App\Services\PlanLimitsService` at every creation point (contacts, imports, email accounts, seats, social accounts, API clients, tenant-wide daily email cap).
+
+### Email Open & Click Tracking (Pro)
+
+Outbound mail gets a signed open pixel and rewritten links (`/t/o/{id}`, `/t/c/{id}`); scanner hits are filtered. Rates appear on Reports. The stored message body is never modified.
+
+### Data Export & Account Deletion (GDPR)
+
+Settings → Data & privacy lets any plan export the entire workspace as a ZIP of JSON + CSV (queued, delivered via in-app notification with a 7-day signed link). Account deletion requires password re-confirmation, then `tenants:purge-deleted` hard-deletes everything after a 30-day grace period.
 
 ---
 
