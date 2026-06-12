@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Contact;
 use App\Models\ContactImport;
 use App\Models\ContactImportRow;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use League\Csv\Reader;
@@ -12,6 +13,10 @@ use Throwable;
 
 class CsvImportService
 {
+    public function __construct(private PlanLimitsService $planLimits)
+    {
+    }
+
     /**
      * Canonical mapping: lowercase/normalised CSV header → Contact field name.
      * Longer, more-specific patterns come first so the match is greedy.
@@ -165,6 +170,11 @@ class CsvImportService
         $skippedRows  = 0;
         $processedRows = 0;
 
+        // Plan cap: new contacts may only be created while headroom remains
+        // (null = unlimited). Duplicate/updated rows don't consume headroom.
+        $tenant    = User::find($import->user_id)?->tenant;
+        $remaining = $tenant ? $this->planLimits->remaining($tenant, 'contacts') : null;
+
         $import->rows()
             ->where('status', 'pending')
             ->orderBy('row_number')
@@ -174,8 +184,19 @@ class CsvImportService
                 &$failedRows,
                 &$skippedRows,
                 &$processedRows,
+                &$remaining,
             ) {
                 foreach ($rows as $row) {
+                    if ($remaining !== null && $remaining <= 0) {
+                        $row->update([
+                            'status'        => 'failed',
+                            'error_message' => $this->planLimits->upgradeMessage('contacts'),
+                        ]);
+                        $processedRows++;
+                        $failedRows++;
+                        continue;
+                    }
+
                     $result = $this->processRow($row, $import->user_id);
 
                     $processedRows++;
@@ -186,6 +207,10 @@ class CsvImportService
                         'failed'   => $failedRows++,
                         default    => null,
                     };
+
+                    if ($result === 'imported' && $remaining !== null) {
+                        $remaining--;
+                    }
                 }
 
                 // Persist running counts periodically

@@ -20,6 +20,10 @@ use Throwable;
 
 class EmailSendingService
 {
+    public function __construct(private PlanLimitsService $planLimits)
+    {
+    }
+
     /**
      * Send an EmailMessage using the SMTP credentials from its EmailAccount.
      */
@@ -66,6 +70,20 @@ class EmailSendingService
             $this->markFailed($emailMessage, $reason);
             event(new EmailFailed($emailMessage, $reason));
             return false;
+        }
+
+        // 3. Check the tenant-wide daily plan cap. This message is already
+        // claimed as 'sending' so it counts toward usage itself — strictly
+        // greater means the cap was already consumed by other sends.
+        $tenant = $emailMessage->tenant_id ? \App\Models\Tenant::find($emailMessage->tenant_id) : null;
+        if ($tenant) {
+            $dailyCap = $this->planLimits->limit($tenant, 'emails_per_day');
+            if ($dailyCap !== null && $this->planLimits->usage($tenant, 'emails_per_day') > $dailyCap) {
+                $reason = 'Your plan\'s daily email limit has been reached. Upgrade your plan to send more emails per day.';
+                $this->markFailed($emailMessage, $reason);
+                event(new EmailFailed($emailMessage, $reason));
+                return false;
+            }
         }
 
         try {

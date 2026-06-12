@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\UserSetting;
+use App\Services\PlanLimitsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -19,12 +20,12 @@ class TeamController extends Controller
         return view('settings.team', compact('tenant', 'users'));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, PlanLimitsService $limits): RedirectResponse
     {
         $tenant = auth()->user()->tenant;
 
-        if ($tenant->users()->count() >= $tenant->max_users) {
-            return back()->withErrors(['email' => "You have reached the user limit ({$tenant->max_users}) for your plan."]);
+        if (! $limits->canAdd($tenant, 'users')) {
+            return back()->withErrors(['email' => $limits->upgradeMessage('users')]);
         }
 
         $data = $request->validate([

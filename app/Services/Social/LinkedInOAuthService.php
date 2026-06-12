@@ -121,6 +121,19 @@ class LinkedInOAuthService
             ->whereHas('provider', fn ($q) => $q->where('key', 'linkedin'))
             ->exists();
 
+        // Reconnecting an existing account is always allowed; only adding a
+        // brand-new account counts against the plan's social account limit.
+        $isNewAccount = ! SocialAccount::where('user_id', $user->id)
+            ->where('social_oauth_app_id', $app->id)
+            ->exists();
+
+        if ($isNewAccount && $user->tenant) {
+            $limits = app(\App\Services\PlanLimitsService::class);
+            if (! $limits->canAdd($user->tenant, 'social_accounts')) {
+                throw new LinkedInOAuthException($limits->upgradeMessage('social_accounts'));
+            }
+        }
+
         $account = SocialAccount::updateOrCreate(
             ['user_id' => $user->id, 'social_oauth_app_id' => $app->id],
             [

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiClient;
 use App\Models\ApiClientToken;
+use App\Services\PlanLimitsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -20,8 +21,18 @@ class IntegrationController extends Controller
         return view('integrations.index', compact('clients'));
     }
 
-    public function createClient(Request $request): RedirectResponse|View
+    public function createClient(Request $request, PlanLimitsService $limits): RedirectResponse|View
     {
+        $tenant = $request->user()->tenant;
+        if ($tenant) {
+            if (! $limits->hasFeature($tenant, 'api_access')) {
+                return back()->withErrors(['plan' => 'API access is available on the Pro and Team plans. Upgrade to create API clients.']);
+            }
+            if (! $limits->canAdd($tenant, 'api_clients')) {
+                return back()->withErrors(['plan' => $limits->upgradeMessage('api_clients')]);
+            }
+        }
+
         $data = $request->validate([
             'name'        => 'required|string|max:100',
             'source_type' => 'required|in:custom_gpt,mcp,n8n,internal_agent,other',

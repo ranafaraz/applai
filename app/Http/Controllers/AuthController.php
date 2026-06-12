@@ -68,7 +68,9 @@ class AuthController extends Controller
             'email'         => $data['email'],
             'plan'          => 'free',
             'status'        => 'trial',
-            'max_users'     => 3,
+            // Seat count is plan-driven (config/plans.php); max_users only
+            // acts as a super-admin upward override.
+            'max_users'     => 1,
             'trial_ends_at' => now()->addDays(14),
         ]);
 

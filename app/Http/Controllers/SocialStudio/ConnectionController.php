@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SocialAccount;
 use App\Models\SocialOAuthApp;
 use App\Models\SocialProvider;
+use App\Services\PlanLimitsService;
 use App\Services\Social\LinkedInOAuthException;
 use App\Services\Social\LinkedInOAuthService;
 use App\Services\Social\WordPressClient;
@@ -41,8 +42,13 @@ class ConnectionController extends Controller
         return view('social-studio.connections', compact('providers', 'oauthApps', 'accounts'));
     }
 
-    public function storeWordPress(Request $request): RedirectResponse
+    public function storeWordPress(Request $request, PlanLimitsService $limits): RedirectResponse
     {
+        $tenant = $request->user()->tenant;
+        if ($tenant && ! $limits->canAdd($tenant, 'social_accounts')) {
+            return back()->withInput()->withErrors(['plan' => $limits->upgradeMessage('social_accounts')]);
+        }
+
         $data = $request->validate([
             'site_url' => ['required', 'url', 'max:500'],
             'label' => ['nullable', 'string', 'max:255'],
