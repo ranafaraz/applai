@@ -49,13 +49,18 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 | `crm_dashboard_summary` | CRM stats and next actions |
 | `crm_search_contacts` | Search contacts |
 | `crm_get_contact` | Get contact by ID |
+| `crm_create_contact` | Create a new contact |
 | `crm_search_opportunities` | Search opportunities |
 | `crm_get_opportunity` | Get opportunity by ID |
 | `crm_create_opportunity` | Create opportunity (deduplicates) |
+| `crm_link_contact_to_opportunity` | Link a contact to an opportunity |
 | `crm_add_note` | Append note to contact or opportunity |
 | `crm_create_email_draft` | Save draft for review (never sends) |
+| `crm_get_email_draft_preview` | Get rendered preview of a draft |
 | `crm_create_followup` | Schedule reminder-only follow-up |
 | `crm_recent_replies` | Get recent inbound replies |
+| `crm_list_documents` | List documents (optionally scoped to contact or opportunity) |
+| `crm_get_document` | Get document by ID with version history |
 | `crm_ingest_opportunities` | Bulk ingest from external sources |
 
 ## Available Resources

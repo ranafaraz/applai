@@ -30,6 +30,8 @@ async function crmFetch(path: string, options: RequestInit = {}): Promise<unknow
 }
 
 export const crm = {
-  get:  (path: string)                       => crmFetch(path),
-  post: (path: string, data: unknown)        => crmFetch(path, { method: 'POST', body: JSON.stringify(data) }),
+  get:    (path: string)                  => crmFetch(path),
+  post:   (path: string, data: unknown)   => crmFetch(path, { method: 'POST',   body: JSON.stringify(data) }),
+  patch:  (path: string, data: unknown)   => crmFetch(path, { method: 'PATCH',  body: JSON.stringify(data) }),
+  delete: (path: string)                  => crmFetch(path, { method: 'DELETE' }),
 };

@@ -178,6 +178,67 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: 'crm_create_contact',
+      description: 'Create a new contact in the CRM.',
+      inputSchema: {
+        type: 'object',
+        required: ['first_name', 'last_name'],
+        properties: {
+          first_name:   { type: 'string' },
+          last_name:    { type: 'string' },
+          email:        { type: 'string' },
+          organization: { type: 'string' },
+          title:        { type: 'string' },
+          phone:        { type: 'string' },
+          linkedin_url: { type: 'string' },
+          notes:        { type: 'string' },
+        },
+      },
+    },
+    {
+      name: 'crm_link_contact_to_opportunity',
+      description: 'Link an existing contact to an opportunity.',
+      inputSchema: {
+        type: 'object',
+        required: ['opportunity_id', 'contact_id'],
+        properties: {
+          opportunity_id: { type: 'number' },
+          contact_id:     { type: 'number' },
+          role:           { type: 'string', description: 'e.g. hiring_manager, recruiter, referral' },
+        },
+      },
+    },
+    {
+      name: 'crm_list_documents',
+      description: 'List documents stored in the CRM, optionally scoped to a contact or opportunity.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          contact_id:     { type: 'number', description: 'Filter to a specific contact' },
+          opportunity_id: { type: 'number', description: 'Filter to a specific opportunity' },
+          limit:          { type: 'number', description: 'Max results (default 20)' },
+        },
+      },
+    },
+    {
+      name: 'crm_get_document',
+      description: 'Get a specific document by ID, including its version history and entity links.',
+      inputSchema: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'number', description: 'Document ID' } },
+      },
+    },
+    {
+      name: 'crm_get_email_draft_preview',
+      description: 'Get a rendered HTML preview of an email draft, with signature and template applied.',
+      inputSchema: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'number', description: 'Email draft ID' } },
+      },
+    },
   ],
 }));
 
@@ -239,6 +300,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'crm_ingest_opportunities':
         result = await crm.post('/ingestion/opportunities', a);
+        break;
+
+      case 'crm_create_contact':
+        result = await crm.post('/contacts', a);
+        break;
+
+      case 'crm_link_contact_to_opportunity':
+        result = await crm.post(`/opportunities/${a.opportunity_id}/contacts`, { contact_id: a.contact_id, role: a.role });
+        break;
+
+      case 'crm_list_documents': {
+        const limit = Number(a.limit) || 20;
+        if (a.contact_id) {
+          result = await crm.get(`/contacts/${Number(a.contact_id)}/documents?limit=${limit}`);
+        } else if (a.opportunity_id) {
+          result = await crm.get(`/opportunities/${Number(a.opportunity_id)}/documents?limit=${limit}`);
+        } else {
+          result = await crm.get(`/documents?limit=${limit}`);
+        }
+        break;
+      }
+
+      case 'crm_get_document':
+        result = await crm.get(`/documents/${a.id}`);
+        break;
+
+      case 'crm_get_email_draft_preview':
+        result = await crm.get(`/email-drafts/${a.id}/rendered-preview`);
         break;
 
       default:
