@@ -1,3 +1,15 @@
+## Serena MCP
+
+Serena provides LSP-backed code intelligence (symbol search, find references, diagnostics, rename, etc.) via 21 tools.
+
+### Session start
+
+If this is the first time working in this project in the session, or the user seems unfamiliar with the codebase state, call `initial_instructions` to get Serena's onboarding context for this project. Call `onboarding` only if the user explicitly asks for a guided tour or if `initial_instructions` indicates it's needed.
+
+Do NOT call either tool on every session start automatically — only when orientation is actually useful for the current task.
+
+---
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
