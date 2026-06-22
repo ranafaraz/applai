@@ -26,3 +26,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /graphify-out/
+.env.local
+/dist/
+/.serena/memories/

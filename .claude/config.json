@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "personal-crm": {
+      "command": "node",
+      "args": ["/path/to/personal-crm/mcp/dist/index.js"],
+      "env": {
+        "CRM_BASE_URL": "${CRM_BASE_URL}",
+        "CRM_API_KEY": "${CRM_API_KEY}"
+      }
+    }
+  }
+}
