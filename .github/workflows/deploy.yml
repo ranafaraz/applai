@@ -37,6 +37,11 @@ jobs:
             # ── Database migrations ───────────────────────────────────
             php artisan migrate --force
 
+            # ── Expand GPT API client scopes (idempotent) ─────────────
+            echo "=== crm:expand-token 27 ==="
+            php artisan crm:expand-token 27 2>&1 || true
+            echo "==="
+
             # ── Rebuild all caches ────────────────────────────────────
             php artisan optimize:clear
             php artisan config:cache
@@ -344,6 +349,12 @@ jobs:
             export INFO_AWAKEEL_PASSWORD="${INFO_AWAKEEL_PASSWORD:-uVUBm6y%SAQ^6m%WUG}"
             export INFO_UPC_PASSWORD="${INFO_UPC_PASSWORD:-dQrA%nXXtJhajfx&j^}"
             php artisan crm:seed-user ranafarazahmed@gmail.com --send-test 2>&1 | tail -80 || true
+            echo "==="
+
+            # ── AI agent API e2e smoke tests ──────────────────────────
+            # Script is versioned at scripts/e2e-api.php (avoids YAML quoting issues)
+            echo "=== AI Agent API e2e smoke tests ==="
+            php /var/www/crm.dexdevs.com/scripts/e2e-api.php 2>&1 | head -80 || true
             echo "==="
 
             set -e
