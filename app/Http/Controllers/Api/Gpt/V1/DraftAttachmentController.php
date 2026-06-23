@@ -16,11 +16,12 @@ class DraftAttachmentController extends GptController
 
         $attachments = $draft->apiAttachments()->get();
 
-        return response()->json([
-            'draft_id' => $draft->id,
-            'data'     => $attachments->map(fn ($a) => $this->formatAttachment($a)),
-            'count'    => $attachments->count(),
-        ]);
+        return $this->listResponse(
+            $attachments->map(fn ($a) => $this->formatAttachment($a))->values(),
+            $attachments->count(),
+            null,
+            ['draft_id' => $draft->id],
+        );
     }
 
     public function store(Request $request, int $draftId): JsonResponse

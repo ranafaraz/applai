@@ -44,10 +44,7 @@ class ScheduledJobController extends GptController
 
         $jobs = $query->orderByDesc('id')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $jobs->map(fn ($j) => $this->format($j)),
-            'count' => $jobs->count(),
-        ]);
+        return $this->listResponse($jobs->map(fn ($j) => $this->format($j))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse

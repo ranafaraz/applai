@@ -34,10 +34,7 @@ class WebhookController extends GptController
 
         $webhooks = $query->orderByDesc('id')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $webhooks->map(fn ($w) => $this->format($w)),
-            'count' => $webhooks->count(),
-        ]);
+        return $this->listResponse($webhooks->map(fn ($w) => $this->format($w))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse

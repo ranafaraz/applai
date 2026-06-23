@@ -58,10 +58,7 @@ class OpportunityController extends GptController
 
         $opportunities = $query->orderByDesc('updated_at')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $opportunities->map(fn ($o) => $this->format($o)),
-            'count' => $opportunities->count(),
-        ]);
+        return $this->listResponse($opportunities->map(fn ($o) => $this->format($o))->values(), $limit);
     }
 
     public function show(Request $request, int $id): JsonResponse

@@ -114,7 +114,7 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_create_email_draft',
-        description: 'Save an email draft for user review. NEVER sends automatically. User must review and send from the CRM.',
+        description: 'Create an email draft. For the MCP client the confirmation gate is bypassed, so the draft is auto-approved and ready to send immediately via crm_send_draft (it is still not sent until you call that). Creating a draft alone does not send anything.',
         inputSchema: {
           type: 'object',
           required: ['contact_id', 'subject', 'body'],
@@ -246,6 +246,153 @@ export function createCrmServer(): Server {
           properties: { id: { type: 'number', description: 'Email draft ID' } },
         },
       },
+      {
+        name: 'crm_pipeline_execute',
+        description: 'Run a complete outreach pipeline in one call: contact upsert → opportunity create (dedup by title+company) → email draft → follow-up reminder → tags. For the MCP client the draft is auto-approved (the confirmation gate is bypassed); use crm_send_draft afterward to send it. Returns the created/upserted contact, opportunity, draft, and follow-up IDs plus any errors (e.g. draft skipped for a suppressed contact).',
+        inputSchema: {
+          type: 'object',
+          required: ['pipeline', 'data'],
+          properties: {
+            pipeline: {
+              type: 'string',
+              enum: ['job_application', 'networking_outreach', 'freelance_pitch', 'research_contact', 'grant_application'],
+              description: 'Pipeline type; maps to the opportunity type.',
+            },
+            data: {
+              type: 'object',
+              required: ['company_name', 'role_title', 'contact_email', 'email_subject', 'email_body'],
+              properties: {
+                company_name:       { type: 'string', description: 'Organization name (max 255)' },
+                role_title:         { type: 'string', description: 'Opportunity title (max 255)' },
+                contact_email:      { type: 'string', description: 'Contact email (used to upsert the contact)' },
+                contact_name:       { type: 'string', description: 'Full name; split into first/last' },
+                email_subject:      { type: 'string', description: 'Draft subject (max 500)' },
+                email_body:         { type: 'string', description: 'Draft body (max 50000)' },
+                follow_up_days:     { type: 'number', description: 'Days until the follow-up reminder (1-90, default 7)' },
+                tags:               { type: 'array', items: { type: 'string' }, description: 'Tag names applied to the opportunity (max 20)' },
+                apply_url:          { type: 'string', description: 'Application/listing URL' },
+                opportunity_status: { type: 'string', enum: ['draft', 'active', 'waiting_reply', 'replied', 'interview', 'offer', 'rejected', 'withdrawn', 'closed'], description: 'Opportunity status (default draft)' },
+              },
+            },
+          },
+        },
+      },
+      {
+        name: 'crm_bulk_create_opportunities',
+        description: 'Create up to 20 opportunities in one call. Deduplicates by title + company (existing ones are reported under "skipped"). Returns created, skipped, and errors arrays.',
+        inputSchema: {
+          type: 'object',
+          required: ['opportunities'],
+          properties: {
+            opportunities: {
+              type: 'array',
+              description: '1-20 opportunities',
+              items: {
+                type: 'object',
+                required: ['title', 'company'],
+                properties: {
+                  title:    { type: 'string' },
+                  company:  { type: 'string' },
+                  type:     { type: 'string', enum: ['job', 'scholarship', 'research', 'grant', 'networking'] },
+                  status:   { type: 'string', enum: ['draft', 'active', 'waiting_reply', 'replied', 'interview', 'offer', 'rejected', 'withdrawn', 'closed'] },
+                  priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
+                  apply_url:{ type: 'string' },
+                  notes:    { type: 'string' },
+                  tags:     { type: 'array', items: { type: 'string' }, description: 'Up to 10 tag names' },
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        name: 'crm_bulk_create_contacts',
+        description: 'Create up to 20 contacts in one call. Deduplicates by email (existing ones are reported under "skipped"). Returns created, skipped, and errors arrays.',
+        inputSchema: {
+          type: 'object',
+          required: ['contacts'],
+          properties: {
+            contacts: {
+              type: 'array',
+              description: '1-20 contacts',
+              items: {
+                type: 'object',
+                required: ['email'],
+                properties: {
+                  email:        { type: 'string' },
+                  first_name:   { type: 'string' },
+                  last_name:    { type: 'string' },
+                  company:      { type: 'string' },
+                  job_title:    { type: 'string' },
+                  phone:        { type: 'string' },
+                  linkedin_url: { type: 'string' },
+                  notes:        { type: 'string' },
+                  status:       { type: 'string', enum: ['active', 'inactive', 'suppressed', 'bounced'] },
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        name: 'crm_bulk_create_drafts',
+        description: 'Create up to 20 email drafts in one call (one per existing contact_id). Skips suppressed contacts and reports them under "errors". For the MCP client drafts are auto-approved; use crm_send_draft to send each. Returns created and errors arrays.',
+        inputSchema: {
+          type: 'object',
+          required: ['drafts'],
+          properties: {
+            drafts: {
+              type: 'array',
+              description: '1-20 drafts',
+              items: {
+                type: 'object',
+                required: ['contact_id', 'subject', 'body'],
+                properties: {
+                  contact_id:     { type: 'number', description: 'Existing contact ID' },
+                  subject:        { type: 'string', description: 'Max 500 chars' },
+                  body:           { type: 'string', description: 'Max 50000 chars' },
+                  opportunity_id: { type: 'number', description: 'Optional opportunity to link' },
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        name: 'crm_send_test_email',
+        description: 'Send a test copy of an email draft to a verification address. Does NOT send to the real recipient and does NOT change the draft status. Use this to preview rendering before sending for real.',
+        inputSchema: {
+          type: 'object',
+          required: ['id', 'test_email'],
+          properties: {
+            id:         { type: 'number', description: 'Email draft ID' },
+            test_email: { type: 'string', description: 'Address to receive the test copy' },
+          },
+        },
+      },
+      {
+        name: 'crm_send_draft',
+        description: 'Send an email draft. For the MCP client the send happens synchronously (the confirmation gate is bypassed) and the response reflects the real delivery outcome. The draft must be in "draft" status and the recipient must not be suppressed.',
+        inputSchema: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'number', description: 'Email draft ID' } },
+        },
+      },
+      {
+        name: 'crm_publish_linkedin_post',
+        description: 'Publish or schedule a LinkedIn post (Social Studio). For the MCP client this bypasses the confirmation gate and publishes/schedules directly. The post must be in "draft" or "approved" status. Use action="publish_now" to queue an immediate publish, or action="schedule" with scheduled_at (a future datetime) to schedule it.',
+        inputSchema: {
+          type: 'object',
+          required: ['id', 'action'],
+          properties: {
+            id:           { type: 'number', description: 'LinkedIn post ID' },
+            action:       { type: 'string', enum: ['publish_now', 'schedule'], description: 'publish_now or schedule' },
+            scheduled_at: { type: 'string', description: 'Future datetime (required when action=schedule)' },
+            timezone:     { type: 'string', description: 'IANA timezone for scheduled_at (default UTC)' },
+          },
+        },
+      },
     ],
   }));
 
@@ -336,6 +483,38 @@ export function createCrmServer(): Server {
         case 'crm_get_email_draft_preview':
           result = await crm.get(`/email-drafts/${a.id}/rendered-preview`);
           break;
+
+        case 'crm_pipeline_execute':
+          result = await crm.post('/pipeline/execute', a);
+          break;
+
+        case 'crm_bulk_create_opportunities':
+          result = await crm.post('/bulk/opportunities', a);
+          break;
+
+        case 'crm_bulk_create_contacts':
+          result = await crm.post('/bulk/contacts', a);
+          break;
+
+        case 'crm_bulk_create_drafts':
+          result = await crm.post('/bulk/drafts', a);
+          break;
+
+        case 'crm_send_test_email':
+          result = await crm.post(`/email-drafts/${a.id}/send-test`, { test_email: a.test_email });
+          break;
+
+        case 'crm_send_draft':
+          result = await crm.post(`/email-drafts/${a.id}/send`, {});
+          break;
+
+        case 'crm_publish_linkedin_post': {
+          const body: Record<string, unknown> = { action: a.action };
+          if (a.scheduled_at) body.scheduled_at = a.scheduled_at;
+          if (a.timezone) body.timezone = a.timezone;
+          result = await crm.postSocial(`/linkedin/posts/${a.id}/publish`, body);
+          break;
+        }
 
         default:
           return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };

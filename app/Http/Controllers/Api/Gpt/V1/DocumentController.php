@@ -53,10 +53,7 @@ class DocumentController extends GptController
 
         $docs = $query->orderByDesc('created_at')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $docs->map(fn ($d) => $this->format($d))->values(),
-            'count' => $docs->count(),
-        ]);
+        return $this->listResponse($docs->map(fn ($d) => $this->format($d))->values(), $limit);
     }
 
     /** Handles both multipart/form-data (file upload) and application/json (URL registration). */

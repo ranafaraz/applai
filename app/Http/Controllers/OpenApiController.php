@@ -14,7 +14,7 @@ class OpenApiController extends Controller
             'openapi' => '3.1.0',
             'info' => [
                 'title'       => 'Personal Outreach CRM – GPT Actions API',
-                'version'     => '1.5.0',
+                'version'     => '1.6.0',
                 'description' => 'Manage CRM data on behalf of the authenticated user. All actions require an X-Api-Key header. Email drafts are NEVER sent automatically — the user must review and send from the CRM UI.',
             ],
             'servers' => [
@@ -366,6 +366,28 @@ class OpenApiController extends Controller
                         'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
                         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['type' => 'object', 'required' => ['note'], 'properties' => ['note' => ['type' => 'string']]]]]],
                         'responses'   => ['200' => ['description' => 'Note added']],
+                    ],
+                ],
+                '/opportunities/check-duplicate' => [
+                    'get' => [
+                        'operationId' => 'checkDuplicateOpportunity',
+                        'summary'     => 'Check whether a duplicate opportunity exists',
+                        'description' => 'Returns whether an opportunity with the same organization (company) and title (role) already exists for the user, without creating anything. Matches against soft-deleted records too. Scope: opportunities:read.',
+                        'parameters'  => [
+                            ['name' => 'company', 'in' => 'query', 'required' => true,  'schema' => ['type' => 'string'], 'description' => 'Organization name to match against organization'],
+                            ['name' => 'role',    'in' => 'query', 'required' => true,  'schema' => ['type' => 'string'], 'description' => 'Role/title to match against title'],
+                        ],
+                        'responses' => [
+                            '200' => ['description' => 'Duplicate check result', 'content' => ['application/json' => ['schema' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'duplicate'   => ['type' => 'boolean'],
+                                    'deleted'     => ['type' => 'boolean', 'description' => 'True when the matching opportunity is soft-deleted'],
+                                    'opportunity' => ['oneOf' => [['$ref' => '#/components/schemas/Opportunity'], ['type' => 'null']]],
+                                ],
+                            ]]]],
+                            '422' => ['description' => 'Both company and role query parameters are required'],
+                        ],
                     ],
                 ],
 
@@ -814,6 +836,32 @@ class OpenApiController extends Controller
                         'responses'   => ['200' => ['description' => 'Draft queued for sending'], '422' => ['description' => 'Not a draft or suppressed contact'], '404' => ['description' => 'Not found']],
                     ],
                 ],
+                '/email-drafts/{id}/send-test' => [
+                    'post' => [
+                        'operationId' => 'sendTestEmailDraft',
+                        'summary'     => 'Send a test copy of a draft to a verification address',
+                        'description' => 'Sends a one-off test copy of the rendered draft (subject prefixed with [TEST], body prefixed with a TEST EMAIL banner) to test_email. Does NOT send to the original recipient, does NOT change send_status, and is not logged as a real send. Scope: drafts:read.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                            'type'     => 'object',
+                            'required' => ['test_email'],
+                            'properties' => [
+                                'test_email' => ['type' => 'string', 'format' => 'email', 'maxLength' => 255, 'description' => 'Verification address the test copy is sent to'],
+                            ],
+                        ]]]],
+                        'responses' => [
+                            '200' => ['description' => 'Test email sent', 'content' => ['application/json' => ['schema' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'message'  => ['type' => 'string'],
+                                    'draft_id' => ['type' => 'integer'],
+                                ],
+                            ]]]],
+                            '404' => ['description' => 'Draft not found'],
+                            '422' => ['description' => 'Validation error'],
+                        ],
+                    ],
+                ],
                 '/email-drafts/{id}/rendered-preview' => [
                     'get' => [
                         'operationId' => 'getDraftRenderedPreview',
@@ -1174,6 +1222,38 @@ class OpenApiController extends Controller
                                 'message'            => ['type' => 'string'],
                             ],
                         ]]]],
+                    ],
+                ],
+            ],
+            '/linkedin/posts/{id}/publish' => [
+                'post' => [
+                    'operationId' => 'publishLinkedInPost',
+                    'summary'     => 'Publish or schedule a post directly (MCP only)',
+                    'description' => 'MCP/Cowork-only direct publish that bypasses the request-confirmation → human-approval gate. action=publish_now sets the post to publishing and dispatches the publish job; action=schedule sets it to scheduled for scheduled_at. Only available to MCP clients (403 otherwise); the post must be in status draft or approved. Scope: social:publish.',
+                    'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                    'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
+                        'type'     => 'object',
+                        'required' => ['action'],
+                        'properties' => [
+                            'action'       => ['type' => 'string', 'enum' => ['publish_now', 'schedule'], 'description' => 'publish_now dispatches immediately. schedule queues for scheduled_at.'],
+                            'scheduled_at' => ['type' => 'string', 'format' => 'date-time', 'description' => 'Required when action=schedule. Must be a future datetime.'],
+                            'timezone'     => ['type' => 'string', 'description' => 'IANA timezone used to interpret scheduled_at, e.g. Asia/Karachi. Defaults to UTC.'],
+                        ],
+                        'example' => ['action' => 'publish_now'],
+                    ]]]],
+                    'responses' => [
+                        '200' => ['description' => 'Post queued for immediate publish or scheduled', 'content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'message'      => ['type' => 'string'],
+                                'post_id'      => ['type' => 'integer'],
+                                'status'       => ['type' => 'string', 'enum' => ['publishing', 'scheduled']],
+                                'scheduled_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            ],
+                        ]]]],
+                        '403' => ['description' => 'Direct publish is only available to MCP/Cowork clients'],
+                        '404' => ['description' => 'Post not found'],
+                        '422' => ['description' => 'Post not in a publishable status or validation error'],
                     ],
                 ],
             ],
@@ -1652,6 +1732,131 @@ class OpenApiController extends Controller
                 'data' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Required for update.'],
             ]),
             'responses' => ['200' => ['description' => 'Per-id results'], '422' => ['description' => 'Validation error']],
+        ]];
+
+        // Outreach pipeline (single-call multi-step flow, under the core gpt/v1 prefix).
+        $paths['/gpt/v1/pipeline/execute'] = ['post' => [
+            'operationId' => 'executeOutreachPipeline', 'summary' => 'Execute a multi-step outreach pipeline in one call',
+            'description' => 'Scope: pipelines:execute. Runs contact upsert → opportunity create/upsert (dedup by title+organization) → email draft (skipped if the contact is suppressed) → follow-up reminder → tags, in a single request. Drafts are never auto-sent. Returns the steps completed and the created entity IDs.',
+            'requestBody' => $this->jsonBody(['pipeline', 'data'], [
+                'pipeline' => ['type' => 'string', 'enum' => ['job_application', 'networking_outreach', 'freelance_pitch', 'research_contact', 'grant_application'], 'description' => 'Pipeline type; maps to the created opportunity type.'],
+                'data' => [
+                    'type' => 'object',
+                    'required' => ['company_name', 'role_title', 'contact_email', 'email_subject', 'email_body'],
+                    'properties' => [
+                        'company_name'       => ['type' => 'string', 'maxLength' => 255],
+                        'role_title'         => ['type' => 'string', 'maxLength' => 255],
+                        'contact_email'      => ['type' => 'string', 'format' => 'email', 'maxLength' => 255],
+                        'contact_name'       => ['type' => 'string', 'maxLength' => 255],
+                        'email_subject'      => ['type' => 'string', 'maxLength' => 500],
+                        'email_body'         => ['type' => 'string', 'maxLength' => 50000],
+                        'follow_up_days'     => ['type' => 'integer', 'minimum' => 1, 'maximum' => 90, 'description' => 'Days from now for the follow-up reminder (default 7).'],
+                        'tags'               => ['type' => 'array', 'items' => ['type' => 'string', 'maxLength' => 100], 'maxItems' => 20, 'description' => 'Tag names applied to the opportunity (created if missing).'],
+                        'apply_url'          => ['type' => 'string', 'format' => 'uri', 'maxLength' => 2048],
+                        'opportunity_status' => ['type' => 'string', 'enum' => ['draft', 'active', 'waiting_reply', 'replied', 'interview', 'offer', 'rejected', 'withdrawn', 'closed']],
+                    ],
+                ],
+            ]),
+            'responses' => [
+                '201' => ['description' => 'Pipeline executed', 'content' => ['application/json' => ['schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'pipeline'        => ['type' => 'string'],
+                        'steps_completed' => ['type' => 'array', 'items' => ['type' => 'string']],
+                        'contact_id'      => ['type' => 'integer'],
+                        'opportunity_id'  => ['type' => 'integer'],
+                        'draft_id'        => ['type' => 'integer', 'nullable' => true, 'description' => 'Null when the draft was skipped (suppressed contact).'],
+                        'followup_id'     => ['type' => 'integer'],
+                        'errors'          => ['type' => 'array', 'items' => ['type' => 'string']],
+                    ],
+                ]]]],
+                '422' => ['description' => 'Validation error'],
+            ],
+        ]];
+
+        // Bulk create (up to 20 items per request, per-item partial success; under the core gpt/v1 prefix).
+        $bulkCreateResponse = [
+            '201' => ['description' => 'Per-item create results', 'content' => ['application/json' => ['schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'created' => ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => true], 'description' => 'Items created in this request.'],
+                    'skipped' => ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => true], 'description' => 'Items skipped as duplicates (with the existing id).'],
+                    'errors'  => ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => true], 'description' => 'Items that failed, each with its index and error.'],
+                ],
+            ]]]],
+            '422' => ['description' => 'Validation error'],
+        ];
+
+        $paths['/gpt/v1/bulk/opportunities'] = ['post' => [
+            'operationId' => 'bulkCreateOpportunities', 'summary' => 'Bulk create opportunities',
+            'description' => 'Scope: bulk:write. Creates up to 20 opportunities; deduplicates by title+company (duplicates are returned in skipped). Per-item partial success.',
+            'requestBody' => $this->jsonBody(['opportunities'], [
+                'opportunities' => [
+                    'type' => 'array', 'minItems' => 1, 'maxItems' => 20,
+                    'items' => [
+                        'type' => 'object',
+                        'required' => ['title', 'company'],
+                        'properties' => [
+                            'title'     => ['type' => 'string', 'maxLength' => 255],
+                            'company'   => ['type' => 'string', 'maxLength' => 255],
+                            'type'      => ['type' => 'string', 'enum' => ['job', 'scholarship', 'research', 'grant', 'networking']],
+                            'status'    => ['type' => 'string', 'enum' => ['draft', 'active', 'waiting_reply', 'replied', 'interview', 'offer', 'rejected', 'withdrawn', 'closed']],
+                            'priority'  => ['type' => 'string', 'enum' => ['low', 'medium', 'high', 'urgent']],
+                            'apply_url' => ['type' => 'string', 'format' => 'uri', 'maxLength' => 2048],
+                            'notes'     => ['type' => 'string', 'maxLength' => 5000],
+                            'tags'      => ['type' => 'array', 'items' => ['type' => 'string', 'maxLength' => 100], 'maxItems' => 10],
+                        ],
+                    ],
+                ],
+            ]),
+            'responses' => $bulkCreateResponse,
+        ]];
+
+        $paths['/gpt/v1/bulk/contacts'] = ['post' => [
+            'operationId' => 'bulkCreateContacts', 'summary' => 'Bulk create contacts',
+            'description' => 'Scope: bulk:write. Creates up to 20 contacts; deduplicates by email (duplicates are returned in skipped). Per-item partial success.',
+            'requestBody' => $this->jsonBody(['contacts'], [
+                'contacts' => [
+                    'type' => 'array', 'minItems' => 1, 'maxItems' => 20,
+                    'items' => [
+                        'type' => 'object',
+                        'required' => ['email'],
+                        'properties' => [
+                            'email'        => ['type' => 'string', 'format' => 'email', 'maxLength' => 255],
+                            'first_name'   => ['type' => 'string', 'maxLength' => 100],
+                            'last_name'    => ['type' => 'string', 'maxLength' => 100],
+                            'company'      => ['type' => 'string', 'maxLength' => 255],
+                            'job_title'    => ['type' => 'string', 'maxLength' => 255],
+                            'phone'        => ['type' => 'string', 'maxLength' => 50],
+                            'linkedin_url' => ['type' => 'string', 'format' => 'uri', 'maxLength' => 2048],
+                            'notes'        => ['type' => 'string', 'maxLength' => 5000],
+                            'status'       => ['type' => 'string', 'enum' => ['active', 'inactive', 'suppressed', 'bounced']],
+                        ],
+                    ],
+                ],
+            ]),
+            'responses' => $bulkCreateResponse,
+        ]];
+
+        $paths['/gpt/v1/bulk/drafts'] = ['post' => [
+            'operationId' => 'bulkCreateDrafts', 'summary' => 'Bulk create email drafts',
+            'description' => 'Scope: bulk:write. Creates up to 20 email drafts. Items referencing a missing/suppressed contact or missing opportunity are reported in errors (skipped is always empty). Drafts are never auto-sent. Per-item partial success.',
+            'requestBody' => $this->jsonBody(['drafts'], [
+                'drafts' => [
+                    'type' => 'array', 'minItems' => 1, 'maxItems' => 20,
+                    'items' => [
+                        'type' => 'object',
+                        'required' => ['contact_id', 'subject', 'body'],
+                        'properties' => [
+                            'contact_id'     => ['type' => 'integer'],
+                            'subject'        => ['type' => 'string', 'maxLength' => 500],
+                            'body'           => ['type' => 'string', 'maxLength' => 50000],
+                            'opportunity_id' => ['type' => 'integer'],
+                        ],
+                    ],
+                ],
+            ]),
+            'responses' => $bulkCreateResponse,
         ]];
 
         return $paths;

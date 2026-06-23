@@ -43,10 +43,7 @@ class ProposalController extends GptController
 
         $proposals = $query->orderByDesc('id')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $proposals->map(fn ($p) => $this->format($p)),
-            'count' => $proposals->count(),
-        ]);
+        return $this->listResponse($proposals->map(fn ($p) => $this->format($p))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse

@@ -42,10 +42,7 @@ class WebhookDeliveryController extends GptController
 
         $deliveries = $query->orderByDesc('id')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $deliveries->map(fn ($d) => $this->format($d)),
-            'count' => $deliveries->count(),
-        ]);
+        return $this->listResponse($deliveries->map(fn ($d) => $this->format($d))->values(), $limit);
     }
 
     public function show(Request $request, int $id): JsonResponse

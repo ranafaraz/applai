@@ -39,10 +39,7 @@ class PipelineController extends GptController
 
         $pipelines = $query->orderByDesc('id')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $pipelines->map(fn ($p) => $this->format($p)),
-            'count' => $pipelines->count(),
-        ]);
+        return $this->listResponse($pipelines->map(fn ($p) => $this->format($p))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse

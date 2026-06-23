@@ -44,10 +44,7 @@ class ResearchPaperController extends GptController
 
         $papers = $query->orderByDesc('id')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $papers->map(fn ($p) => $this->format($p)),
-            'count' => $papers->count(),
-        ]);
+        return $this->listResponse($papers->map(fn ($p) => $this->format($p))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse

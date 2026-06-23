@@ -29,4 +29,105 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(function ($request) {
             return $request->is('api/*') || $request->expectsJson();
         });
+
+        // Standardize the JSON error envelope across every API/agent endpoint
+        // (5A). All API errors return the same shape so calling agents can branch
+        // on a stable `code` and read field-level `errors`:
+        //   { success: false, error: "...", message: "...", code: "...", errors: {} }
+        // `message` + `errors` are retained for backward compatibility with clients
+        // that already read Laravel's default validation envelope.
+        $apiJson = static function ($request): bool {
+            return $request->is('api/*') || $request->expectsJson();
+        };
+
+        $envelope = static function (string $message, string $code, int $status, array $errors = []) {
+            $payload = [
+                'success' => false,
+                'error'   => $message,
+                'message' => $message,
+                'code'    => $code,
+            ];
+            if ($errors !== []) {
+                $payload['errors'] = $errors;
+            }
+
+            return response()->json($payload, $status);
+        };
+
+        $exceptions->render(function (\Illuminate\Validation\ValidationException $e, $request) use ($apiJson, $envelope) {
+            if (! $apiJson($request)) {
+                return null;
+            }
+
+            return $envelope($e->getMessage(), 'VALIDATION_ERROR', 422, $e->errors());
+        });
+
+        $exceptions->render(function (\Illuminate\Database\Eloquent\ModelNotFoundException $e, $request) use ($apiJson, $envelope) {
+            if (! $apiJson($request)) {
+                return null;
+            }
+
+            return $envelope('Resource not found.', 'NOT_FOUND', 404);
+        });
+
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e, $request) use ($apiJson, $envelope) {
+            if (! $apiJson($request)) {
+                return null;
+            }
+
+            return $envelope($e->getMessage() ?: 'Resource not found.', 'NOT_FOUND', 404);
+        });
+
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, $request) use ($apiJson, $envelope) {
+            if (! $apiJson($request)) {
+                return null;
+            }
+
+            return $envelope($e->getMessage() ?: 'Unauthenticated.', 'UNAUTHENTICATED', 401);
+        });
+
+        $exceptions->render(function (\Illuminate\Auth\Access\AuthorizationException $e, $request) use ($apiJson, $envelope) {
+            if (! $apiJson($request)) {
+                return null;
+            }
+
+            return $envelope($e->getMessage() ?: 'This action is unauthorized.', 'FORBIDDEN', 403);
+        });
+
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e, $request) use ($apiJson, $envelope) {
+            if (! $apiJson($request)) {
+                return null;
+            }
+
+            return $envelope($e->getMessage() ?: 'This action is unauthorized.', 'FORBIDDEN', 403);
+        });
+
+        $exceptions->render(function (\Illuminate\Http\Exceptions\ThrottleRequestsException $e, $request) use ($apiJson, $envelope) {
+            if (! $apiJson($request)) {
+                return null;
+            }
+
+            return $envelope('Too many requests.', 'RATE_LIMITED', 429);
+        });
+
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e, $request) use ($apiJson, $envelope) {
+            if (! $apiJson($request)) {
+                return null;
+            }
+
+            $status = $e->getStatusCode();
+            $code = match ($status) {
+                400     => 'BAD_REQUEST',
+                401     => 'UNAUTHENTICATED',
+                403     => 'FORBIDDEN',
+                404     => 'NOT_FOUND',
+                405     => 'METHOD_NOT_ALLOWED',
+                409     => 'CONFLICT',
+                422     => 'VALIDATION_ERROR',
+                429     => 'RATE_LIMITED',
+                default => $status >= 500 ? 'SERVER_ERROR' : 'HTTP_ERROR',
+            };
+
+            return $envelope($e->getMessage() ?: 'Request failed.', $code, $status);
+        });
     })->create();

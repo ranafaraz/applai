@@ -41,19 +41,16 @@ class ReplyController extends GptController
 
         $replies = $query->orderByDesc('received_at')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $replies->map(fn ($r) => [
-                'id'          => $r->id,
-                'from_email'  => $r->from_email,
-                'from_name'   => $r->from_name,
-                'subject'     => $r->subject,
-                'sentiment'   => $r->sentiment,
-                'received_at' => $r->received_at?->toISOString(),
-                'contact'     => $r->matchedContact?->only(['id', 'first_name', 'last_name', 'email']),
-                'opportunity' => $r->matchedOpportunity?->only(['id', 'title', 'status']),
-                'preview'     => substr(strip_tags($r->body_text ?? ''), 0, 300),
-            ]),
-            'count' => $replies->count(),
-        ]);
+        return $this->listResponse($replies->map(fn ($r) => [
+            'id'          => $r->id,
+            'from_email'  => $r->from_email,
+            'from_name'   => $r->from_name,
+            'subject'     => $r->subject,
+            'sentiment'   => $r->sentiment,
+            'received_at' => $r->received_at?->toISOString(),
+            'contact'     => $r->matchedContact?->only(['id', 'first_name', 'last_name', 'email']),
+            'opportunity' => $r->matchedOpportunity?->only(['id', 'title', 'status']),
+            'preview'     => substr(strip_tags($r->body_text ?? ''), 0, 300),
+        ])->values(), $limit);
     }
 }

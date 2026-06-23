@@ -44,10 +44,7 @@ class ContactController extends GptController
 
         $contacts = $query->orderByDesc('updated_at')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $contacts->map(fn ($c) => $this->format($c)),
-            'count' => $contacts->count(),
-        ]);
+        return $this->listResponse($contacts->map(fn ($c) => $this->format($c))->values(), $limit);
     }
 
     public function show(Request $request, int $id): JsonResponse

@@ -26,10 +26,7 @@ class FollowUpController extends GptController
             ->limit(50)
             ->get();
 
-        return response()->json([
-            'data'  => $followUps->map(fn ($f) => $this->format($f)),
-            'count' => $followUps->count(),
-        ]);
+        return $this->listResponse($followUps->map(fn ($f) => $this->format($f))->values(), 50);
     }
 
     public function store(Request $request): JsonResponse
@@ -169,10 +166,7 @@ class FollowUpController extends GptController
 
         $followUps = $query->orderBy('due_at')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $followUps->map(fn ($f) => $this->format($f)),
-            'count' => $followUps->count(),
-        ]);
+        return $this->listResponse($followUps->map(fn ($f) => $this->format($f))->values(), $limit);
     }
 
     public function update(Request $request, int $id): JsonResponse

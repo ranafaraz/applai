@@ -29,10 +29,7 @@ class EmailDraftController extends GptController
             ->limit(50)
             ->get();
 
-        return response()->json([
-            'data'  => $drafts->map(fn ($d) => $this->format($d)),
-            'count' => $drafts->count(),
-        ]);
+        return $this->listResponse($drafts->map(fn ($d) => $this->format($d))->values(), 50);
     }
 
     public function store(Request $request): JsonResponse

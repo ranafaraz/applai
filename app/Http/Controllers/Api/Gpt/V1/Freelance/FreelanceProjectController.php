@@ -51,10 +51,7 @@ class FreelanceProjectController extends GptController
 
         $projects = $query->orderByDesc('id')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $projects->map(fn ($p) => $this->format($p)),
-            'count' => $projects->count(),
-        ]);
+        return $this->listResponse($projects->map(fn ($p) => $this->format($p))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse

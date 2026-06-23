@@ -153,6 +153,68 @@ abstract class GptController extends Controller
             ->toArray();
     }
 
+    /**
+     * Standardized API error envelope (5A). Mirrors the shape produced centrally
+     * for thrown exceptions in bootstrap/app.php, so inline controller errors and
+     * framework errors look identical to the caller:
+     *   { success: false, error, message, code, errors? }
+     */
+    protected function errorResponse(
+        string $message,
+        string $code = 'BAD_REQUEST',
+        int $status = 422,
+        array $errors = [],
+    ): JsonResponse {
+        $payload = [
+            'success' => false,
+            'error'   => $message,
+            'message' => $message,
+            'code'    => $code,
+        ];
+        if ($errors !== []) {
+            $payload['errors'] = $errors;
+        }
+
+        return response()->json($payload, $status);
+    }
+
+    /** Standardized 404 envelope. */
+    protected function notFound(string $message = 'Resource not found.'): JsonResponse
+    {
+        return $this->errorResponse($message, 'NOT_FOUND', 404);
+    }
+
+    /**
+     * Standardized list envelope (5B). Wraps a result set in `{ data, meta }`
+     * with pagination metadata. `count` is retained for backward compatibility
+     * with clients reading the previous `{ data, count }` shape. These endpoints
+     * cap results at a `limit` rather than offset-paginating, so `current_page`
+     * is 1 and `total` defaults to the number of rows returned; pass an explicit
+     * `$total` when a full unscoped count is available.
+     */
+    protected function listResponse(
+        array|\Illuminate\Support\Collection $data,
+        int $perPage,
+        ?int $total = null,
+        array $extra = [],
+    ): JsonResponse {
+        $rows  = $data instanceof \Illuminate\Support\Collection ? $data->values()->all() : array_values($data);
+        $count = count($rows);
+        $total = $total ?? $count;
+        $per   = $perPage > 0 ? $perPage : max(1, $count);
+
+        return response()->json(array_merge([
+            'data'  => $rows,
+            'count' => $count,
+            'meta'  => [
+                'current_page' => 1,
+                'per_page'     => $per,
+                'total'        => $total,
+                'last_page'    => (int) max(1, (int) ceil($total / $per)),
+            ],
+        ], $extra));
+    }
+
     protected function audit(
         Request $request,
         string $action,

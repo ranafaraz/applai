@@ -17,10 +17,7 @@ class SignatureController extends GptController
             ->orderBy('name')
             ->get();
 
-        return response()->json([
-            'data'  => $signatures->map(fn ($s) => $this->format($s)),
-            'count' => $signatures->count(),
-        ]);
+        return $this->listResponse($signatures->map(fn ($s) => $this->format($s))->values(), $signatures->count());
     }
 
     public function show(Request $request, int $id): JsonResponse

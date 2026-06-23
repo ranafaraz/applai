@@ -16,38 +16,38 @@ class AuthenticateApiClient
         $raw = $request->header('X-Api-Key');
 
         if (! $raw) {
-            return response()->json(['error' => 'Missing X-Api-Key header.'], 401);
+            return $this->deny('Missing X-Api-Key header.', 'UNAUTHENTICATED', 401);
         }
 
         $token = ApiClientToken::findByRaw($raw);
 
         if (! $token) {
-            return response()->json(['error' => 'Invalid API key.'], 401);
+            return $this->deny('Invalid API key.', 'UNAUTHENTICATED', 401);
         }
 
         if (! $token->is_active) {
-            return response()->json(['error' => 'API key is revoked.'], 401);
+            return $this->deny('API key is revoked.', 'UNAUTHENTICATED', 401);
         }
 
         if ($token->isExpired()) {
-            return response()->json(['error' => 'API key has expired.'], 401);
+            return $this->deny('API key has expired.', 'UNAUTHENTICATED', 401);
         }
 
         $client = $token->apiClient;
 
         if (! $client || ! $client->is_active) {
-            return response()->json(['error' => 'API client is disabled.'], 401);
+            return $this->deny('API client is disabled.', 'UNAUTHENTICATED', 401);
         }
 
         if ($client->isExpired()) {
-            return response()->json(['error' => 'API client has expired.'], 401);
+            return $this->deny('API client has expired.', 'UNAUTHENTICATED', 401);
         }
 
         // IP allowlist check (if configured)
         if (! empty($client->allowed_ips)) {
             $ip = $request->ip();
             if (! in_array($ip, $client->allowed_ips, true)) {
-                return response()->json(['error' => 'IP address not allowed.'], 403);
+                return $this->deny('IP address not allowed.', 'FORBIDDEN', 403);
             }
         }
 
@@ -64,5 +64,16 @@ class AuthenticateApiClient
         Auth::setUser($client->user);
 
         return $next($request);
+    }
+
+    /** Standardized API error envelope (5A); keeps `error` for backward compatibility. */
+    private function deny(string $message, string $code, int $status): \Illuminate\Http\JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'error'   => $message,
+            'message' => $message,
+            'code'    => $code,
+        ], $status);
     }
 }

@@ -38,10 +38,7 @@ class TagController extends GptController
 
         $tags = $query->orderBy('name')->limit($limit)->get();
 
-        return response()->json([
-            'data'  => $tags->map(fn ($t) => $this->format($t)),
-            'count' => $tags->count(),
-        ]);
+        return $this->listResponse($tags->map(fn ($t) => $this->format($t))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse

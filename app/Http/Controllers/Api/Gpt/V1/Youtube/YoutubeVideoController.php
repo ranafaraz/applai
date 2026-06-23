@@ -66,10 +66,7 @@ class YoutubeVideoController extends GptController
             ->limit($limit)
             ->get();
 
-        return response()->json([
-            'data'  => $videos->map(fn ($v) => $this->format($v)),
-            'count' => $videos->count(),
-        ]);
+        return $this->listResponse($videos->map(fn ($v) => $this->format($v))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse

@@ -59,10 +59,7 @@ class ContentItemController extends GptController
             ->limit($limit)
             ->get();
 
-        return response()->json([
-            'data'  => $items->map(fn ($i) => $this->format($i)),
-            'count' => $items->count(),
-        ]);
+        return $this->listResponse($items->map(fn ($i) => $this->format($i))->values(), $limit);
     }
 
     public function store(Request $request): JsonResponse
