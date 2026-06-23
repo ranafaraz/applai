@@ -359,6 +359,9 @@ Route::get('/openapi/gpt-actions.json', [OpenApiController::class, 'gptActions']
 Route::get('/openapi/social-gpt-actions.json', [OpenApiController::class, 'socialActions'])
     ->name('openapi.social-gpt-actions');
 
+Route::get('/openapi/agent-actions.json', [OpenApiController::class, 'agentActions'])
+    ->name('openapi.agent-actions');
+
 // ---------------------------------------------------------------------------
 // Integration / API key management (requires auth)
 // ---------------------------------------------------------------------------

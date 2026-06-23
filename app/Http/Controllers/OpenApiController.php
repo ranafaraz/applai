@@ -14,7 +14,7 @@ class OpenApiController extends Controller
             'openapi' => '3.1.0',
             'info' => [
                 'title'       => 'Personal Outreach CRM – GPT Actions API',
-                'version'     => '1.4.0',
+                'version'     => '1.5.0',
                 'description' => 'Manage CRM data on behalf of the authenticated user. All actions require an X-Api-Key header. Email drafts are NEVER sent automatically — the user must review and send from the CRM UI.',
             ],
             'servers' => [
@@ -313,6 +313,33 @@ class OpenApiController extends Controller
                         'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
                         'responses'   => ['200' => ['description' => 'Opportunity detail']],
                     ],
+                    'patch' => [
+                        'operationId' => 'updateOpportunity',
+                        'summary'     => 'Update an opportunity',
+                        'description' => 'Scope: opportunities:write.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'title'        => ['type' => 'string'],
+                                'organization' => ['type' => 'string'],
+                                'description'  => ['type' => 'string'],
+                                'url'          => ['type' => 'string', 'format' => 'uri'],
+                                'status'       => ['type' => 'string'],
+                                'priority'     => ['type' => 'string', 'enum' => ['low', 'medium', 'high']],
+                                'deadline'     => ['type' => 'string', 'format' => 'date'],
+                                'notes'        => ['type' => 'string'],
+                            ],
+                        ]]]],
+                        'responses' => ['200' => ['description' => 'Opportunity updated'], '404' => ['description' => 'Not found']],
+                    ],
+                    'delete' => [
+                        'operationId' => 'deleteOpportunity',
+                        'summary'     => 'Delete an opportunity',
+                        'description' => 'Soft delete. Scope: opportunities:delete.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Deleted'], '404' => ['description' => 'Not found']],
+                    ],
                 ],
                 '/opportunities/{id}/contacts' => [
                     'post' => [
@@ -389,6 +416,30 @@ class OpenApiController extends Controller
                         'summary'     => 'Get contact by ID',
                         'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
                         'responses'   => ['200' => ['description' => 'Contact detail']],
+                    ],
+                    'patch' => [
+                        'operationId' => 'updateContact',
+                        'summary'     => 'Update a contact',
+                        'description' => 'Scope: contacts:write.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'status'    => ['type' => 'string'],
+                                'company'   => ['type' => 'string'],
+                                'job_title' => ['type' => 'string'],
+                                'phone'     => ['type' => 'string'],
+                                'notes'     => ['type' => 'string'],
+                            ],
+                        ]]]],
+                        'responses' => ['200' => ['description' => 'Contact updated'], '404' => ['description' => 'Not found']],
+                    ],
+                    'delete' => [
+                        'operationId' => 'deleteContact',
+                        'summary'     => 'Delete a contact',
+                        'description' => 'Soft delete. Scope: contacts:delete.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Deleted'], '404' => ['description' => 'Not found']],
                     ],
                 ],
                 '/contacts/{id}/notes' => [
@@ -729,6 +780,40 @@ class OpenApiController extends Controller
                         ],
                     ],
                 ],
+                '/email-drafts/{id}' => [
+                    'patch' => [
+                        'operationId' => 'updateEmailDraft',
+                        'summary'     => 'Update an email draft',
+                        'description' => 'Only drafts can be edited. Scope: drafts:update.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'subject'        => ['type' => 'string', 'maxLength' => 500],
+                                'body'           => ['type' => 'string', 'maxLength' => 50000],
+                                'signature_id'   => ['type' => 'integer', 'nullable' => true],
+                                'attachment_ids' => ['type' => 'array', 'items' => ['type' => 'integer'], 'maxItems' => 10],
+                            ],
+                        ]]]],
+                        'responses' => ['200' => ['description' => 'Draft updated'], '404' => ['description' => 'Not found']],
+                    ],
+                    'delete' => [
+                        'operationId' => 'deleteEmailDraft',
+                        'summary'     => 'Delete an email draft',
+                        'description' => 'Scope: drafts:delete.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Deleted'], '404' => ['description' => 'Not found']],
+                    ],
+                ],
+                '/email-drafts/{id}/send' => [
+                    'post' => [
+                        'operationId' => 'sendEmailDraft',
+                        'summary'     => 'Queue a draft for sending',
+                        'description' => 'Schedules the draft for immediate sending via the CRM send pipeline (sets status=scheduled, scheduled_at=now). Never sends inline. 422 if not a draft or contact is suppressed. Scope: email:send.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Draft queued for sending'], '422' => ['description' => 'Not a draft or suppressed contact'], '404' => ['description' => 'Not found']],
+                    ],
+                ],
                 '/email-drafts/{id}/rendered-preview' => [
                     'get' => [
                         'operationId' => 'getDraftRenderedPreview',
@@ -769,6 +854,18 @@ class OpenApiController extends Controller
                 // Follow-ups
                 // ---------------------------------------------------------------
                 '/follow-ups' => [
+                    'get' => [
+                        'operationId' => 'listFollowUps',
+                        'summary'     => 'List follow-ups',
+                        'description' => 'Filter by status, contact_id, opportunity_id. Scope: followups:read.',
+                        'parameters'  => [
+                            ['name' => 'status',         'in' => 'query', 'schema' => ['type' => 'string']],
+                            ['name' => 'contact_id',     'in' => 'query', 'schema' => ['type' => 'integer']],
+                            ['name' => 'opportunity_id', 'in' => 'query', 'schema' => ['type' => 'integer']],
+                            ['name' => 'limit',          'in' => 'query', 'schema' => ['type' => 'integer', 'maximum' => 100]],
+                        ],
+                        'responses' => ['200' => ['description' => 'List of follow-ups']],
+                    ],
                     'post' => [
                         'operationId' => 'createFollowUp',
                         'summary'     => 'Schedule a follow-up reminder',
@@ -791,6 +888,31 @@ class OpenApiController extends Controller
                             '201' => ['description' => 'Follow-up scheduled', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/FollowUp']]]],
                             '422' => ['description' => 'Blocked – suppressed contact'],
                         ],
+                    ],
+                ],
+                '/follow-ups/{id}' => [
+                    'patch' => [
+                        'operationId' => 'updateFollowUp',
+                        'summary'     => 'Update a follow-up',
+                        'description' => 'Scope: followups:update. suggested_subject/suggested_body map to subject/body.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'requestBody' => ['content' => ['application/json' => ['schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'status'            => ['type' => 'string'],
+                                'due_at'            => ['type' => 'string', 'format' => 'date-time'],
+                                'suggested_subject' => ['type' => 'string', 'maxLength' => 500],
+                                'suggested_body'    => ['type' => 'string', 'maxLength' => 20000],
+                            ],
+                        ]]]],
+                        'responses' => ['200' => ['description' => 'Follow-up updated'], '404' => ['description' => 'Not found']],
+                    ],
+                    'delete' => [
+                        'operationId' => 'deleteFollowUp',
+                        'summary'     => 'Delete a follow-up',
+                        'description' => 'Hard delete (follow-ups have no soft deletes). Scope: followups:delete.',
+                        'parameters'  => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
+                        'responses'   => ['200' => ['description' => 'Deleted'], '404' => ['description' => 'Not found']],
                     ],
                 ],
                 '/follow-ups/due' => [
@@ -1152,5 +1274,386 @@ class OpenApiController extends Controller
                 ],
             ],
         ];
+    }
+
+    // ── Agent Actions (extended backend domains) ──────────────────────────────
+
+    /**
+     * OpenAPI spec for the extended agent-backend domains added in the agent
+     * build: content calendar, research papers, proposals, YouTube, freelance
+     * projects, pipelines + scheduler, webhooks, analytics, tags, and bulk ops.
+     * Server base is /api so the single document can span every domain prefix.
+     */
+    public function agentActions(): JsonResponse
+    {
+        $base = rtrim(config('app.url'), '/');
+
+        $schema = [
+            'openapi'    => '3.1.0',
+            'info'       => [
+                'title'       => 'Personal CRM – Agent Actions API',
+                'version'     => '1.0.0',
+                'description' => 'Extended agent-backend endpoints: content calendar, research papers, proposals, YouTube, freelance projects, pipelines + scheduler, webhooks, analytics, tags, and bulk operations. All actions require an X-Api-Key header (format pocrm_live_<token>). Lifecycle actions (publish / send / complete / execute / run / test) only record CRM state — they never contact external services.',
+            ],
+            'servers'    => [['url' => $base . '/api', 'description' => 'Production CRM API']],
+            'components' => [
+                'securitySchemes' => [
+                    'ApiKeyAuth' => [
+                        'type' => 'apiKey', 'in' => 'header', 'name' => 'X-Api-Key',
+                        'description' => 'API key generated in CRM → Settings → Integrations. Format: pocrm_live_<token>',
+                    ],
+                ],
+            ],
+            'security'   => [['ApiKeyAuth' => []]],
+            'paths'      => $this->agentActionPaths(),
+        ];
+
+        return response()->json($schema)
+            ->header('Access-Control-Allow-Origin', '*')
+            ->header('Content-Type', 'application/json; charset=utf-8');
+    }
+
+    /** Build a JSON request body schema. */
+    private function jsonBody(array $required, array $props): array
+    {
+        $schema = ['type' => 'object', 'properties' => $props];
+        if (! empty($required)) {
+            $schema['required'] = $required;
+        }
+
+        return ['required' => ! empty($required), 'content' => ['application/json' => ['schema' => $schema]]];
+    }
+
+    /** A single query parameter definition. */
+    private function qp(string $name, string $type = 'string', ?array $enum = null): array
+    {
+        $schema = ['type' => $type];
+        if ($enum) {
+            $schema['enum'] = $enum;
+        }
+
+        return ['name' => $name, 'in' => 'query', 'required' => false, 'schema' => $schema];
+    }
+
+    /**
+     * Generate standard CRUD (+ optional lifecycle action) path entries for one
+     * resource. Config keys: prefix, resource, op (PascalCase id stem), name,
+     * plural, readScope, writeScope, required[], props{}, indexParams[],
+     * action{name,scope,summary,body}, readOnly(bool).
+     */
+    private function crudResource(array $c): array
+    {
+        $coll    = "{$c['prefix']}/{$c['resource']}";
+        $item    = "{$coll}/{id}";
+        $idParam = ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']];
+        $name    = $c['name'];
+
+        $collOps = [
+            'get' => [
+                'operationId' => 'list' . $c['op'],
+                'summary'     => "List {$c['plural']}",
+                'description' => "Scope: {$c['readScope']}.",
+                'parameters'  => $c['indexParams'] ?? [],
+                'responses'   => ['200' => ['description' => "List of {$c['plural']}"]],
+            ],
+        ];
+
+        if (empty($c['readOnly'])) {
+            $collOps['post'] = [
+                'operationId' => 'create' . $c['op'],
+                'summary'     => "Create {$name}",
+                'description' => "Scope: {$c['writeScope']}.",
+                'requestBody' => $this->jsonBody($c['required'] ?? [], $c['props'] ?? []),
+                'responses'   => ['201' => ['description' => "{$name} created"], '422' => ['description' => 'Validation error']],
+            ];
+        }
+
+        $itemOps = [
+            'get' => [
+                'operationId' => 'get' . $c['op'],
+                'summary'     => "Get {$name} by ID",
+                'description' => "Scope: {$c['readScope']}.",
+                'parameters'  => [$idParam],
+                'responses'   => ['200' => ['description' => "{$name} detail"], '404' => ['description' => 'Not found']],
+            ],
+        ];
+
+        if (empty($c['readOnly'])) {
+            $itemOps['patch'] = [
+                'operationId' => 'update' . $c['op'],
+                'summary'     => "Update {$name}",
+                'description' => "Scope: {$c['writeScope']}.",
+                'parameters'  => [$idParam],
+                'requestBody' => $this->jsonBody([], $c['props'] ?? []),
+                'responses'   => ['200' => ['description' => "{$name} updated"], '404' => ['description' => 'Not found']],
+            ];
+            $itemOps['delete'] = [
+                'operationId' => 'delete' . $c['op'],
+                'summary'     => "Delete {$name}",
+                'description' => "Scope: {$c['writeScope']}.",
+                'parameters'  => [$idParam],
+                'responses'   => ['200' => ['description' => 'Deleted'], '404' => ['description' => 'Not found']],
+            ];
+        }
+
+        $paths = [$coll => $collOps, $item => $itemOps];
+
+        if (! empty($c['action'])) {
+            $a = $c['action'];
+            $op = [
+                'operationId' => $a['name'] . $c['op'],
+                'summary'     => $a['summary'],
+                'description' => "Scope: {$a['scope']}. Records CRM state only.",
+                'parameters'  => [$idParam],
+                'responses'   => ['200' => ['description' => 'OK'], '201' => ['description' => 'Created'], '422' => ['description' => 'Invalid state']],
+            ];
+            if (! empty($a['body'])) {
+                $op['requestBody'] = $this->jsonBody([], $a['body']);
+            }
+            $paths["{$item}/{$a['name']}"] = ['post' => $op];
+        }
+
+        return $paths;
+    }
+
+    private function agentActionPaths(): array
+    {
+        $meta   = ['meta' => ['type' => 'object', 'additionalProperties' => true]];
+        $limit  = $this->qp('limit', 'integer');
+        $search = $this->qp('search');
+
+        $resources = [
+            // Content calendar
+            [
+                'prefix' => '/content/v1', 'resource' => 'items', 'op' => 'ContentItem',
+                'name' => 'content item', 'plural' => 'content items',
+                'readScope' => 'content:read', 'writeScope' => 'content:write',
+                'required' => ['title'],
+                'props' => [
+                    'title' => ['type' => 'string'], 'content_type' => ['type' => 'string'],
+                    'channel' => ['type' => 'string'],
+                    'status' => ['type' => 'string', 'enum' => ['idea', 'draft', 'scheduled', 'published', 'archived']],
+                    'body' => ['type' => 'string'], 'notes' => ['type' => 'string'],
+                    'scheduled_for' => ['type' => 'string', 'format' => 'date-time'],
+                    'published_url' => ['type' => 'string', 'format' => 'uri'],
+                ] + $meta,
+                'indexParams' => [$this->qp('status'), $this->qp('content_type'), $this->qp('channel'), $this->qp('from'), $this->qp('to'), $search, $limit],
+                'action' => ['name' => 'publish', 'scope' => 'content:publish', 'summary' => 'Mark a content item published', 'body' => ['published_url' => ['type' => 'string', 'format' => 'uri']]],
+            ],
+            // Research papers
+            [
+                'prefix' => '/research/v1', 'resource' => 'papers', 'op' => 'ResearchPaper',
+                'name' => 'research paper', 'plural' => 'research papers',
+                'readScope' => 'research:read', 'writeScope' => 'research:write',
+                'required' => ['title'],
+                'props' => [
+                    'title' => ['type' => 'string'], 'authors' => ['type' => 'array', 'items' => ['type' => 'string']],
+                    'abstract' => ['type' => 'string'], 'url' => ['type' => 'string', 'format' => 'uri'],
+                    'pdf_url' => ['type' => 'string', 'format' => 'uri'], 'arxiv_id' => ['type' => 'string'],
+                    'doi' => ['type' => 'string'], 'venue' => ['type' => 'string'],
+                    'published_date' => ['type' => 'string', 'format' => 'date'],
+                    'status' => ['type' => 'string', 'enum' => ['to_read', 'reading', 'read', 'archived']],
+                    'notes' => ['type' => 'string'],
+                ] + $meta,
+                'indexParams' => [$this->qp('status'), $this->qp('venue'), $this->qp('arxiv_id'), $search, $limit],
+            ],
+            // Proposals
+            [
+                'prefix' => '/proposals/v1', 'resource' => 'proposals', 'op' => 'Proposal',
+                'name' => 'proposal', 'plural' => 'proposals',
+                'readScope' => 'proposals:read', 'writeScope' => 'proposals:write',
+                'required' => ['title'],
+                'props' => [
+                    'title' => ['type' => 'string'], 'contact_id' => ['type' => 'integer'],
+                    'opportunity_id' => ['type' => 'integer'],
+                    'status' => ['type' => 'string', 'enum' => ['draft', 'sent', 'accepted', 'rejected', 'expired']],
+                    'amount' => ['type' => 'number'], 'currency' => ['type' => 'string'],
+                    'body' => ['type' => 'string'], 'url' => ['type' => 'string', 'format' => 'uri'],
+                    'valid_until' => ['type' => 'string', 'format' => 'date'],
+                ] + $meta,
+                'indexParams' => [$this->qp('status'), $this->qp('contact_id', 'integer'), $this->qp('opportunity_id', 'integer'), $search, $limit],
+                'action' => ['name' => 'send', 'scope' => 'proposals:write', 'summary' => 'Mark a draft proposal as sent'],
+            ],
+            // YouTube videos
+            [
+                'prefix' => '/youtube/v1', 'resource' => 'videos', 'op' => 'YoutubeVideo',
+                'name' => 'YouTube video', 'plural' => 'YouTube videos',
+                'readScope' => 'youtube:read', 'writeScope' => 'youtube:write',
+                'required' => ['title'],
+                'props' => [
+                    'title' => ['type' => 'string'], 'video_id' => ['type' => 'string'],
+                    'url' => ['type' => 'string', 'format' => 'uri'], 'description' => ['type' => 'string'],
+                    'status' => ['type' => 'string', 'enum' => ['idea', 'scripting', 'recording', 'editing', 'scheduled', 'published', 'archived']],
+                    'visibility' => ['type' => 'string', 'enum' => ['public', 'unlisted', 'private']],
+                    'channel' => ['type' => 'string'], 'thumbnail_url' => ['type' => 'string', 'format' => 'uri'],
+                    'duration_seconds' => ['type' => 'integer'], 'tags' => ['type' => 'array', 'items' => ['type' => 'string']],
+                    'view_count' => ['type' => 'integer'], 'like_count' => ['type' => 'integer'], 'comment_count' => ['type' => 'integer'],
+                    'scheduled_for' => ['type' => 'string', 'format' => 'date-time'],
+                ] + $meta,
+                'indexParams' => [$this->qp('status'), $this->qp('visibility'), $this->qp('channel'), $this->qp('video_id'), $this->qp('from'), $this->qp('to'), $search, $limit],
+                'action' => ['name' => 'publish', 'scope' => 'youtube:write', 'summary' => 'Mark a video published', 'body' => ['video_id' => ['type' => 'string'], 'url' => ['type' => 'string', 'format' => 'uri']]],
+            ],
+            // Freelance projects
+            [
+                'prefix' => '/freelance/v1', 'resource' => 'projects', 'op' => 'FreelanceProject',
+                'name' => 'freelance project', 'plural' => 'freelance projects',
+                'readScope' => 'freelance:read', 'writeScope' => 'freelance:write',
+                'required' => ['title'],
+                'props' => [
+                    'title' => ['type' => 'string'], 'contact_id' => ['type' => 'integer'],
+                    'opportunity_id' => ['type' => 'integer'], 'client_name' => ['type' => 'string'],
+                    'platform' => ['type' => 'string'],
+                    'status' => ['type' => 'string', 'enum' => ['lead', 'proposal', 'active', 'on_hold', 'completed', 'cancelled']],
+                    'rate_type' => ['type' => 'string', 'enum' => ['hourly', 'fixed']],
+                    'rate' => ['type' => 'number'], 'budget' => ['type' => 'number'], 'currency' => ['type' => 'string'],
+                    'estimated_hours' => ['type' => 'number'], 'hours_logged' => ['type' => 'number'],
+                    'description' => ['type' => 'string'], 'url' => ['type' => 'string', 'format' => 'uri'],
+                    'start_date' => ['type' => 'string', 'format' => 'date'], 'due_date' => ['type' => 'string', 'format' => 'date'],
+                ] + $meta,
+                'indexParams' => [$this->qp('status'), $this->qp('platform'), $this->qp('contact_id', 'integer'), $this->qp('opportunity_id', 'integer'), $search, $limit],
+                'action' => ['name' => 'complete', 'scope' => 'freelance:write', 'summary' => 'Mark a project completed'],
+            ],
+            // Pipelines
+            [
+                'prefix' => '/pipelines/v1', 'resource' => 'pipelines', 'op' => 'Pipeline',
+                'name' => 'pipeline', 'plural' => 'pipelines',
+                'readScope' => 'pipelines:read', 'writeScope' => 'pipelines:write',
+                'required' => ['name'],
+                'props' => [
+                    'name' => ['type' => 'string'], 'description' => ['type' => 'string'],
+                    'trigger_type' => ['type' => 'string', 'enum' => ['manual', 'scheduled', 'webhook']],
+                    'status' => ['type' => 'string', 'enum' => ['active', 'paused', 'archived']],
+                    'steps' => ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => true]],
+                    'config' => ['type' => 'object', 'additionalProperties' => true],
+                ] + $meta,
+                'indexParams' => [$this->qp('status'), $this->qp('trigger_type'), $search, $limit],
+                'action' => ['name' => 'execute', 'scope' => 'pipelines:execute', 'summary' => 'Trigger a pipeline run (records a PipelineRun)', 'body' => ['input' => ['type' => 'object', 'additionalProperties' => true], 'trigger_source' => ['type' => 'string', 'enum' => ['manual', 'scheduled', 'webhook', 'api']]]],
+            ],
+            // Scheduled jobs
+            [
+                'prefix' => '/pipelines/v1', 'resource' => 'scheduled-jobs', 'op' => 'ScheduledJob',
+                'name' => 'scheduled job', 'plural' => 'scheduled jobs',
+                'readScope' => 'scheduler:read', 'writeScope' => 'scheduler:write',
+                'required' => ['name'],
+                'props' => [
+                    'name' => ['type' => 'string'], 'description' => ['type' => 'string'],
+                    'job_type' => ['type' => 'string'], 'pipeline_id' => ['type' => 'integer'],
+                    'frequency' => ['type' => 'string', 'enum' => ['once', 'hourly', 'daily', 'weekly', 'monthly', 'cron']],
+                    'cron_expression' => ['type' => 'string'],
+                    'run_at' => ['type' => 'string', 'format' => 'date-time'],
+                    'next_run_at' => ['type' => 'string', 'format' => 'date-time'],
+                    'status' => ['type' => 'string', 'enum' => ['active', 'paused']],
+                    'payload' => ['type' => 'object', 'additionalProperties' => true],
+                ] + $meta,
+                'indexParams' => [$this->qp('status'), $this->qp('job_type'), $this->qp('pipeline_id', 'integer'), $search, $limit],
+                'action' => ['name' => 'run', 'scope' => 'scheduler:write', 'summary' => 'Manually run a scheduled job'],
+            ],
+            // Pipeline runs (read-only log)
+            [
+                'prefix' => '/pipelines/v1', 'resource' => 'runs', 'op' => 'PipelineRun',
+                'name' => 'pipeline run', 'plural' => 'pipeline runs',
+                'readScope' => 'pipelines:read', 'writeScope' => 'pipelines:read', 'readOnly' => true,
+                'indexParams' => [$this->qp('pipeline_id', 'integer'), $this->qp('status'), $this->qp('trigger_source'), $limit],
+            ],
+            // Webhooks
+            [
+                'prefix' => '/webhooks/v1', 'resource' => 'webhooks', 'op' => 'Webhook',
+                'name' => 'webhook', 'plural' => 'webhooks',
+                'readScope' => 'webhooks:read', 'writeScope' => 'webhooks:write',
+                'required' => ['name', 'url'],
+                'props' => [
+                    'name' => ['type' => 'string'], 'url' => ['type' => 'string', 'format' => 'uri'],
+                    'events' => ['type' => 'array', 'items' => ['type' => 'string']],
+                    'secret' => ['type' => 'string', 'description' => 'Write-only; never returned.'],
+                    'status' => ['type' => 'string', 'enum' => ['active', 'paused']],
+                ] + $meta,
+                'indexParams' => [$this->qp('status'), $search, $limit],
+                'action' => ['name' => 'test', 'scope' => 'webhooks:write', 'summary' => 'Record a test delivery', 'body' => ['event' => ['type' => 'string'], 'payload' => ['type' => 'object', 'additionalProperties' => true]]],
+            ],
+            // Webhook deliveries (read-only log)
+            [
+                'prefix' => '/webhooks/v1', 'resource' => 'deliveries', 'op' => 'WebhookDelivery',
+                'name' => 'webhook delivery', 'plural' => 'webhook deliveries',
+                'readScope' => 'webhooks:read', 'writeScope' => 'webhooks:read', 'readOnly' => true,
+                'indexParams' => [$this->qp('webhook_id', 'integer'), $this->qp('status'), $this->qp('event'), $limit],
+            ],
+            // Tags
+            [
+                'prefix' => '/tags/v1', 'resource' => 'tags', 'op' => 'Tag',
+                'name' => 'tag', 'plural' => 'tags',
+                'readScope' => 'tags:read', 'writeScope' => 'tags:write',
+                'required' => ['name'],
+                'props' => [
+                    'name' => ['type' => 'string'], 'color' => ['type' => 'string'], 'slug' => ['type' => 'string'],
+                ],
+                'indexParams' => [$search, $limit],
+            ],
+        ];
+
+        $paths = [];
+        foreach ($resources as $r) {
+            $paths = array_merge($paths, $this->crudResource($r));
+        }
+
+        // Non-uniform endpoints.
+        $entityEnum = ['contact', 'opportunity'];
+
+        $paths['/tags/v1/tags/attach'] = ['post' => [
+            'operationId' => 'attachTags', 'summary' => 'Attach tags to a contact or opportunity',
+            'description' => 'Scope: tags:write. Provide tag_ids (existing) and/or tags (names, created if missing).',
+            'requestBody' => $this->jsonBody(['entity', 'id'], [
+                'entity' => ['type' => 'string', 'enum' => $entityEnum], 'id' => ['type' => 'integer'],
+                'tag_ids' => ['type' => 'array', 'items' => ['type' => 'integer']],
+                'tags' => ['type' => 'array', 'items' => ['type' => 'string']],
+            ]),
+            'responses' => ['200' => ['description' => 'Updated tag list'], '404' => ['description' => 'Entity not found'], '422' => ['description' => 'Validation error']],
+        ]];
+        $paths['/tags/v1/tags/detach'] = ['post' => [
+            'operationId' => 'detachTags', 'summary' => 'Detach tags from a contact or opportunity',
+            'description' => 'Scope: tags:write.',
+            'requestBody' => $this->jsonBody(['entity', 'id', 'tag_ids'], [
+                'entity' => ['type' => 'string', 'enum' => $entityEnum], 'id' => ['type' => 'integer'],
+                'tag_ids' => ['type' => 'array', 'items' => ['type' => 'integer']],
+            ]),
+            'responses' => ['200' => ['description' => 'Updated tag list'], '404' => ['description' => 'Entity not found']],
+        ]];
+        $paths['/tags/v1/tags/on/{entity}/{id}'] = ['get' => [
+            'operationId' => 'tagsOnEntity', 'summary' => 'List tags attached to a contact or opportunity',
+            'description' => 'Scope: tags:read.',
+            'parameters' => [
+                ['name' => 'entity', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'enum' => $entityEnum]],
+                ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']],
+            ],
+            'responses' => ['200' => ['description' => 'Tag list'], '404' => ['description' => 'Entity not found']],
+        ]];
+
+        // Analytics (read-only aggregations).
+        foreach ([
+            'summary'       => 'Cross-domain entity counts and key status breakdowns',
+            'opportunities' => 'Opportunity pipeline by status and priority',
+            'revenue'       => 'Proposal and freelance revenue aggregations',
+            'content'       => 'Content and YouTube publishing analytics',
+        ] as $path => $summary) {
+            $paths["/analytics/v1/{$path}"] = ['get' => [
+                'operationId' => 'analytics' . ucfirst($path), 'summary' => $summary,
+                'description' => 'Scope: analytics:read.',
+                'responses' => ['200' => ['description' => 'Aggregated metrics']],
+            ]];
+        }
+
+        // Bulk operations (under the core gpt/v1 prefix).
+        $paths['/gpt/v1/bulk'] = ['post' => [
+            'operationId' => 'bulkOperation', 'summary' => 'Bulk update or delete entities',
+            'description' => 'Scope: bulk:write. Per-id partial success; returns a results array. entity ∈ opportunities|contacts|follow_ups; operation ∈ update|delete; max 100 ids.',
+            'requestBody' => $this->jsonBody(['entity', 'operation', 'ids'], [
+                'entity' => ['type' => 'string', 'enum' => ['opportunities', 'contacts', 'follow_ups']],
+                'operation' => ['type' => 'string', 'enum' => ['update', 'delete']],
+                'ids' => ['type' => 'array', 'items' => ['type' => 'integer'], 'maxItems' => 100],
+                'data' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Required for update.'],
+            ]),
+            'responses' => ['200' => ['description' => 'Per-id results'], '422' => ['description' => 'Validation error']],
+        ]];
+
+        return $paths;
     }
 }

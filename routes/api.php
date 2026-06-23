@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Gpt\V1\HealthController;
 use App\Http\Controllers\Api\Gpt\V1\MeController;
 use App\Http\Controllers\Api\Gpt\V1\DashboardSummaryController;
+use App\Http\Controllers\Api\Gpt\V1\BulkController;
 use App\Http\Controllers\Api\Gpt\V1\OpportunityController;
 use App\Http\Controllers\Api\Gpt\V1\ContactController;
 use App\Http\Controllers\Api\Gpt\V1\EmailDraftController;
@@ -20,6 +21,18 @@ use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInPostController;
 use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInMediaController;
 use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInConfirmationController;
 use App\Http\Controllers\Api\Gpt\V1\Social\LinkedInAnalyticsController;
+use App\Http\Controllers\Api\Gpt\V1\Content\ContentItemController;
+use App\Http\Controllers\Api\Gpt\V1\Research\ResearchPaperController;
+use App\Http\Controllers\Api\Gpt\V1\Proposal\ProposalController;
+use App\Http\Controllers\Api\Gpt\V1\Youtube\YoutubeVideoController;
+use App\Http\Controllers\Api\Gpt\V1\Freelance\FreelanceProjectController;
+use App\Http\Controllers\Api\Gpt\V1\Pipeline\PipelineController;
+use App\Http\Controllers\Api\Gpt\V1\Pipeline\PipelineRunController;
+use App\Http\Controllers\Api\Gpt\V1\Pipeline\ScheduledJobController;
+use App\Http\Controllers\Api\Gpt\V1\Webhook\WebhookController;
+use App\Http\Controllers\Api\Gpt\V1\Webhook\WebhookDeliveryController;
+use App\Http\Controllers\Api\Gpt\V1\Analytics\AnalyticsController;
+use App\Http\Controllers\Api\Gpt\V1\Tag\TagController;
 use App\Http\Controllers\Api\Social\AiDraftController as SocialAiDraftController;
 use Illuminate\Support\Facades\Route;
 
@@ -52,6 +65,10 @@ Route::prefix('gpt/v1')
             ->middleware(['api.scope:opportunities:write', 'throttle:20,1']);
         Route::post('opportunities/{id}/notes', [OpportunityController::class, 'addNote'])
             ->middleware(['api.scope:notes:write', 'throttle:20,1']);
+        Route::patch('opportunities/{id}', [OpportunityController::class, 'update'])
+            ->middleware(['api.scope:opportunities:write', 'throttle:20,1']);
+        Route::delete('opportunities/{id}', [OpportunityController::class, 'destroy'])
+            ->middleware('api.scope:opportunities:delete');
 
         // Contacts
         Route::get('contacts', [ContactController::class, 'index'])
@@ -62,6 +79,10 @@ Route::prefix('gpt/v1')
             ->middleware('api.scope:contacts:read');
         Route::post('contacts/{id}/notes', [ContactController::class, 'addNote'])
             ->middleware(['api.scope:notes:write', 'throttle:20,1']);
+        Route::patch('contacts/{id}', [ContactController::class, 'update'])
+            ->middleware(['api.scope:contacts:write', 'throttle:20,1']);
+        Route::delete('contacts/{id}', [ContactController::class, 'destroy'])
+            ->middleware('api.scope:contacts:delete');
 
         // ---------------------------------------------------------------------------
         // Signatures
@@ -99,6 +120,13 @@ Route::prefix('gpt/v1')
             ->middleware('api.scope:drafts:read');
         Route::post('email-drafts', [EmailDraftController::class, 'store'])
             ->middleware(['api.scope:drafts:create', 'throttle:5,1']);
+        Route::patch('email-drafts/{id}', [EmailDraftController::class, 'update'])
+            ->middleware(['api.scope:drafts:update', 'throttle:20,1']);
+        Route::delete('email-drafts/{id}', [EmailDraftController::class, 'destroy'])
+            ->middleware('api.scope:drafts:delete');
+        // Human-triggered send — hands off to the scheduled-send pipeline, never sends inline.
+        Route::post('email-drafts/{id}/send', [EmailDraftController::class, 'send'])
+            ->middleware(['api.scope:email:send', 'throttle:10,1']);
 
         // Draft attachments (manage after draft creation)
         Route::get('email-drafts/{draft_id}/attachments', [DraftAttachmentController::class, 'index'])
@@ -117,8 +145,14 @@ Route::prefix('gpt/v1')
         // ---------------------------------------------------------------------------
         Route::get('follow-ups/due', [FollowUpController::class, 'due'])
             ->middleware('api.scope:followups:read');
+        Route::get('follow-ups', [FollowUpController::class, 'index'])
+            ->middleware('api.scope:followups:read');
         Route::post('follow-ups', [FollowUpController::class, 'store'])
             ->middleware(['api.scope:followups:create', 'throttle:20,1']);
+        Route::patch('follow-ups/{id}', [FollowUpController::class, 'update'])
+            ->middleware(['api.scope:followups:update', 'throttle:20,1']);
+        Route::delete('follow-ups/{id}', [FollowUpController::class, 'destroy'])
+            ->middleware('api.scope:followups:delete');
 
         // Replies
         Route::get('replies/recent', [ReplyController::class, 'recent'])
@@ -200,6 +234,13 @@ Route::prefix('gpt/v1')
             ->middleware(['api.scope:documents:write', 'throttle:20,1']);
         Route::delete('follow-ups/{id}/documents/{docId}', [DocumentController::class, 'detachFromFollowUp'])
             ->middleware('api.scope:documents:write');
+
+        // ---------------------------------------------------------------------------
+        // Bulk operations  – batch update/delete across opportunities/contacts/follow-ups
+        // Per-id partial success; each row scoped to the calling user.
+        // ---------------------------------------------------------------------------
+        Route::post('bulk', [BulkController::class, 'handle'])
+            ->middleware(['api.scope:bulk:write', 'throttle:10,1']);
 
         // Confirmation requests (multi-step AI action gating)
         Route::post('confirmations', [ConfirmationController::class, 'store'])
@@ -285,4 +326,236 @@ Route::prefix('social/v1')
             ->middleware('api.scope:social:analytics');
         Route::post('linkedin/analytics/accounts/{accountId}/sync', [LinkedInAnalyticsController::class, 'syncNow'])
             ->middleware(['api.scope:social:analytics', 'throttle:5,1']);
+    });
+
+// ---------------------------------------------------------------------------
+// Content Calendar API  –  /api/content/v1
+// Editorial calendar: ideas → drafts → scheduled → published.
+// Publishing here only records status/URL — it does not push to any platform.
+// ---------------------------------------------------------------------------
+Route::prefix('content/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->group(function () {
+
+        Route::get('items', [ContentItemController::class, 'index'])
+            ->middleware('api.scope:content:read');
+        Route::post('items', [ContentItemController::class, 'store'])
+            ->middleware(['api.scope:content:write', 'throttle:20,1']);
+        Route::get('items/{id}', [ContentItemController::class, 'show'])
+            ->middleware('api.scope:content:read');
+        Route::patch('items/{id}', [ContentItemController::class, 'update'])
+            ->middleware(['api.scope:content:write', 'throttle:20,1']);
+        Route::delete('items/{id}', [ContentItemController::class, 'destroy'])
+            ->middleware('api.scope:content:write');
+        Route::post('items/{id}/publish', [ContentItemController::class, 'publish'])
+            ->middleware(['api.scope:content:publish', 'throttle:10,1']);
+    });
+
+// ---------------------------------------------------------------------------
+// Research Papers API  –  /api/research/v1
+// Reading list / reference library: to_read → reading → read → archived.
+// ---------------------------------------------------------------------------
+Route::prefix('research/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->group(function () {
+
+        Route::get('papers', [ResearchPaperController::class, 'index'])
+            ->middleware('api.scope:research:read');
+        Route::post('papers', [ResearchPaperController::class, 'store'])
+            ->middleware(['api.scope:research:write', 'throttle:20,1']);
+        Route::get('papers/{id}', [ResearchPaperController::class, 'show'])
+            ->middleware('api.scope:research:read');
+        Route::patch('papers/{id}', [ResearchPaperController::class, 'update'])
+            ->middleware(['api.scope:research:write', 'throttle:20,1']);
+        Route::delete('papers/{id}', [ResearchPaperController::class, 'destroy'])
+            ->middleware('api.scope:research:write');
+    });
+
+// ---------------------------------------------------------------------------
+// Proposals API  –  /api/proposals/v1
+// Client proposals/quotes: draft → sent → accepted | rejected | expired.
+// "send" only records CRM state — it does not transmit the proposal.
+// ---------------------------------------------------------------------------
+Route::prefix('proposals/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->group(function () {
+
+        Route::get('proposals', [ProposalController::class, 'index'])
+            ->middleware('api.scope:proposals:read');
+        Route::post('proposals', [ProposalController::class, 'store'])
+            ->middleware(['api.scope:proposals:write', 'throttle:20,1']);
+        Route::get('proposals/{id}', [ProposalController::class, 'show'])
+            ->middleware('api.scope:proposals:read');
+        Route::patch('proposals/{id}', [ProposalController::class, 'update'])
+            ->middleware(['api.scope:proposals:write', 'throttle:20,1']);
+        Route::delete('proposals/{id}', [ProposalController::class, 'destroy'])
+            ->middleware('api.scope:proposals:write');
+        Route::post('proposals/{id}/send', [ProposalController::class, 'send'])
+            ->middleware(['api.scope:proposals:write', 'throttle:10,1']);
+    });
+
+// ---------------------------------------------------------------------------
+// YouTube API  –  /api/youtube/v1
+// Video production pipeline: idea → scripting → recording → editing → scheduled → published.
+// "publish" only records CRM state/URL — it does not upload or publish on YouTube.
+// ---------------------------------------------------------------------------
+Route::prefix('youtube/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->group(function () {
+
+        Route::get('videos', [YoutubeVideoController::class, 'index'])
+            ->middleware('api.scope:youtube:read');
+        Route::post('videos', [YoutubeVideoController::class, 'store'])
+            ->middleware(['api.scope:youtube:write', 'throttle:20,1']);
+        Route::get('videos/{id}', [YoutubeVideoController::class, 'show'])
+            ->middleware('api.scope:youtube:read');
+        Route::patch('videos/{id}', [YoutubeVideoController::class, 'update'])
+            ->middleware(['api.scope:youtube:write', 'throttle:20,1']);
+        Route::delete('videos/{id}', [YoutubeVideoController::class, 'destroy'])
+            ->middleware('api.scope:youtube:write');
+        Route::post('videos/{id}/publish', [YoutubeVideoController::class, 'publish'])
+            ->middleware(['api.scope:youtube:write', 'throttle:10,1']);
+    });
+
+// ---------------------------------------------------------------------------
+// Freelance API  –  /api/freelance/v1
+// Freelance projects/gigs: lead → proposal → active → on_hold → completed | cancelled.
+// "complete" only records CRM state — it does not notify the client.
+// ---------------------------------------------------------------------------
+Route::prefix('freelance/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->group(function () {
+
+        Route::get('projects', [FreelanceProjectController::class, 'index'])
+            ->middleware('api.scope:freelance:read');
+        Route::post('projects', [FreelanceProjectController::class, 'store'])
+            ->middleware(['api.scope:freelance:write', 'throttle:20,1']);
+        Route::get('projects/{id}', [FreelanceProjectController::class, 'show'])
+            ->middleware('api.scope:freelance:read');
+        Route::patch('projects/{id}', [FreelanceProjectController::class, 'update'])
+            ->middleware(['api.scope:freelance:write', 'throttle:20,1']);
+        Route::delete('projects/{id}', [FreelanceProjectController::class, 'destroy'])
+            ->middleware('api.scope:freelance:write');
+        Route::post('projects/{id}/complete', [FreelanceProjectController::class, 'complete'])
+            ->middleware(['api.scope:freelance:write', 'throttle:10,1']);
+    });
+
+// ---------------------------------------------------------------------------
+// Pipelines + Scheduler API  –  /api/pipelines/v1
+// Pipelines are named automation definitions (manual/scheduled/webhook trigger);
+// "execute" records a PipelineRun. Scheduled jobs are recurring/one-off triggers
+// that may run a linked pipeline. Both "execute" and "run" only record state —
+// there is no inline execution engine or background cron dispatcher.
+// ---------------------------------------------------------------------------
+Route::prefix('pipelines/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->group(function () {
+
+        // Pipeline definitions
+        Route::get('pipelines', [PipelineController::class, 'index'])
+            ->middleware('api.scope:pipelines:read');
+        Route::post('pipelines', [PipelineController::class, 'store'])
+            ->middleware(['api.scope:pipelines:write', 'throttle:20,1']);
+        Route::get('pipelines/{id}', [PipelineController::class, 'show'])
+            ->middleware('api.scope:pipelines:read');
+        Route::patch('pipelines/{id}', [PipelineController::class, 'update'])
+            ->middleware(['api.scope:pipelines:write', 'throttle:20,1']);
+        Route::delete('pipelines/{id}', [PipelineController::class, 'destroy'])
+            ->middleware('api.scope:pipelines:write');
+        Route::post('pipelines/{id}/execute', [PipelineController::class, 'execute'])
+            ->middleware(['api.scope:pipelines:execute', 'throttle:10,1']);
+
+        // Execution log (read-only)
+        Route::get('runs', [PipelineRunController::class, 'index'])
+            ->middleware('api.scope:pipelines:read');
+        Route::get('runs/{id}', [PipelineRunController::class, 'show'])
+            ->middleware('api.scope:pipelines:read');
+
+        // Scheduled jobs
+        Route::get('scheduled-jobs', [ScheduledJobController::class, 'index'])
+            ->middleware('api.scope:scheduler:read');
+        Route::post('scheduled-jobs', [ScheduledJobController::class, 'store'])
+            ->middleware(['api.scope:scheduler:write', 'throttle:20,1']);
+        Route::get('scheduled-jobs/{id}', [ScheduledJobController::class, 'show'])
+            ->middleware('api.scope:scheduler:read');
+        Route::patch('scheduled-jobs/{id}', [ScheduledJobController::class, 'update'])
+            ->middleware(['api.scope:scheduler:write', 'throttle:20,1']);
+        Route::delete('scheduled-jobs/{id}', [ScheduledJobController::class, 'destroy'])
+            ->middleware('api.scope:scheduler:write');
+        Route::post('scheduled-jobs/{id}/run', [ScheduledJobController::class, 'run'])
+            ->middleware(['api.scope:scheduler:write', 'throttle:10,1']);
+    });
+
+// ---------------------------------------------------------------------------
+// Webhooks API  –  /api/webhooks/v1
+// Outbound webhook registrations + a read-only delivery log. "test" records a
+// delivery and stamps last_triggered_at — there is no outbound HTTP dispatcher,
+// so deliveries are recorded as pending (CRM-state only).
+// ---------------------------------------------------------------------------
+Route::prefix('webhooks/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->group(function () {
+
+        Route::get('webhooks', [WebhookController::class, 'index'])
+            ->middleware('api.scope:webhooks:read');
+        Route::post('webhooks', [WebhookController::class, 'store'])
+            ->middleware(['api.scope:webhooks:write', 'throttle:20,1']);
+        Route::get('webhooks/{id}', [WebhookController::class, 'show'])
+            ->middleware('api.scope:webhooks:read');
+        Route::patch('webhooks/{id}', [WebhookController::class, 'update'])
+            ->middleware(['api.scope:webhooks:write', 'throttle:20,1']);
+        Route::delete('webhooks/{id}', [WebhookController::class, 'destroy'])
+            ->middleware('api.scope:webhooks:write');
+        Route::post('webhooks/{id}/test', [WebhookController::class, 'test'])
+            ->middleware(['api.scope:webhooks:write', 'throttle:10,1']);
+
+        // Delivery log (read-only)
+        Route::get('deliveries', [WebhookDeliveryController::class, 'index'])
+            ->middleware('api.scope:webhooks:read');
+        Route::get('deliveries/{id}', [WebhookDeliveryController::class, 'show'])
+            ->middleware('api.scope:webhooks:read');
+    });
+
+// ---------------------------------------------------------------------------
+// Analytics API  –  /api/analytics/v1
+// Read-only aggregations over the user's CRM data. No tables of its own; every
+// query is scoped to the authenticated user. All endpoints require analytics:read.
+// ---------------------------------------------------------------------------
+Route::prefix('analytics/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1', 'api.scope:analytics:read'])
+    ->group(function () {
+        Route::get('summary', [AnalyticsController::class, 'summary']);
+        Route::get('opportunities', [AnalyticsController::class, 'opportunities']);
+        Route::get('revenue', [AnalyticsController::class, 'revenue']);
+        Route::get('content', [AnalyticsController::class, 'content']);
+    });
+
+// ---------------------------------------------------------------------------
+// Tags API  –  /api/tags/v1
+// Cross-cutting tag management + attach/detach to contacts and opportunities.
+// Tags + the taggable morph pivot pre-exist; the tags table has NO tenant_id
+// column, so tags are created with user_id only.
+// ---------------------------------------------------------------------------
+Route::prefix('tags/v1')
+    ->middleware(['api.client', 'api.log', 'throttle:60,1'])
+    ->group(function () {
+
+        // Specific routes before tags/{id} to avoid collisions.
+        Route::post('tags/attach', [TagController::class, 'attach'])
+            ->middleware(['api.scope:tags:write', 'throttle:30,1']);
+        Route::post('tags/detach', [TagController::class, 'detach'])
+            ->middleware(['api.scope:tags:write', 'throttle:30,1']);
+        Route::get('tags/on/{entity}/{id}', [TagController::class, 'on'])
+            ->middleware('api.scope:tags:read');
+
+        Route::get('tags', [TagController::class, 'index'])
+            ->middleware('api.scope:tags:read');
+        Route::post('tags', [TagController::class, 'store'])
+            ->middleware(['api.scope:tags:write', 'throttle:30,1']);
+        Route::get('tags/{id}', [TagController::class, 'show'])
+            ->middleware('api.scope:tags:read');
+        Route::patch('tags/{id}', [TagController::class, 'update'])
+            ->middleware(['api.scope:tags:write', 'throttle:30,1']);
+        Route::delete('tags/{id}', [TagController::class, 'destroy'])
+            ->middleware('api.scope:tags:write');
     });
