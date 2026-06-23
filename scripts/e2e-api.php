@@ -13,10 +13,10 @@ $app = require 'bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 // ── Find the GPT client ────────────────────────────────────────────────────
-$client = \App\Models\ApiClient::where('token_prefix', 'pocrm_live_WJkJS')->first()
-    ?? \App\Models\ApiClient::find(11);
+// token_prefix is on api_client_tokens, not api_clients — look up by ID directly
+$client = \App\Models\ApiClient::find(11);
 if (!$client) {
-    echo "SKIP: ApiClient 11 / prefix pocrm_live_WJkJS not found\n";
+    echo "SKIP: ApiClient #11 not found on prod (run crm:api-client:create first)\n";
     exit(0);
 }
 
