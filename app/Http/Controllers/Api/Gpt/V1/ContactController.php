@@ -136,6 +136,59 @@ class ContactController extends GptController
         return response()->json(['message' => 'Note added.', 'data' => $this->format($contact)]);
     }
 
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'first_name'   => 'sometimes|nullable|string|max:100',
+            'last_name'    => 'sometimes|nullable|string|max:100',
+            'full_name'    => 'sometimes|string|max:200',
+            'email'        => 'sometimes|nullable|email|max:255',
+            'phone'        => 'sometimes|nullable|string|max:50',
+            'company'      => 'sometimes|nullable|string|max:255',
+            'job_title'    => 'sometimes|nullable|string|max:255',
+            'linkedin_url' => 'sometimes|nullable|url|max:2048',
+            'status'       => ['sometimes', Rule::in(['active', 'suppressed', 'bounced'])],
+            'notes'        => 'sometimes|nullable|string|max:5000',
+        ]);
+
+        $user    = $this->apiUser($request);
+        $contact = Contact::where('user_id', $user->id)->findOrFail($id);
+
+        // Split full_name into first/last only when explicit name parts are absent.
+        if (! empty($data['full_name']) && ! array_key_exists('first_name', $data)) {
+            $parts = explode(' ', $data['full_name'], 2);
+            $data['first_name'] = $parts[0];
+            $data['last_name']  = $parts[1] ?? null;
+        }
+        unset($data['full_name']);
+
+        if (array_key_exists('email', $data) && ! empty($data['email'])) {
+            $data['email'] = strtolower($data['email']);
+        }
+
+        if (empty($data)) {
+            return response()->json(['error' => 'No updatable fields provided.'], 422);
+        }
+
+        $contact->fill($data);
+        $contact->save();
+
+        $this->audit($request, 'update_contact', 'contact', $contact->id, 'low',
+            'fields=' . implode(',', array_keys($data)), "id={$contact->id}");
+
+        return response()->json(['data' => $this->format($contact, true)]);
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $contact = Contact::where('user_id', $this->apiUser($request)->id)->findOrFail($id);
+        $contact->delete();
+
+        $this->audit($request, 'delete_contact', 'contact', $id, 'medium', "id={$id}");
+
+        return response()->json(['deleted' => true, 'id' => $id]);
+    }
+
     private function format(Contact $c, bool $full = false): array
     {
         $base = [

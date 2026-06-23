@@ -170,6 +170,146 @@ class EmailDraftController extends GptController
         return response()->json($response, 201);
     }
 
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'subject'         => 'sometimes|string|max:500',
+            'body'            => 'sometimes|string|max:50000',
+            'signature_id'    => 'sometimes|nullable|integer',
+            'attachment_ids'  => 'sometimes|array|max:10',
+            'attachment_ids.*'=> 'integer',
+        ]);
+
+        $user  = $this->apiUser($request);
+        $draft = EmailMessage::where('user_id', $user->id)
+            ->where('status', 'draft')
+            ->where('direction', 'outbound')
+            ->findOrFail($id);
+
+        if (array_key_exists('subject', $data)) {
+            $draft->subject = $data['subject'];
+        }
+        if (array_key_exists('body', $data)) {
+            $draft->body = $data['body'];
+        }
+
+        // Re-resolve signature and re-snapshot its rendered HTML (null clears it).
+        if (array_key_exists('signature_id', $data)) {
+            if (empty($data['signature_id'])) {
+                $draft->email_signature_id = null;
+                $draft->rendered_signature = null;
+            } else {
+                $signature = EmailSignature::where('user_id', $user->id)->findOrFail($data['signature_id']);
+                $draft->email_signature_id = $signature->id;
+                $draft->rendered_signature = $signature->renderHtml();
+            }
+        }
+
+        $draft->save();
+
+        // Replace the attachment set when provided (verifying ownership).
+        if (array_key_exists('attachment_ids', $data)) {
+            $attachments = ApiAttachment::where('user_id', $user->id)
+                ->whereIn('id', $data['attachment_ids'])
+                ->get();
+
+            $missingIds = array_values(array_diff($data['attachment_ids'], $attachments->pluck('id')->toArray()));
+            if (! empty($missingIds)) {
+                return response()->json([
+                    'error'       => 'One or more attachment_ids were not found. Register files via POST /attachments first.',
+                    'missing_ids' => $missingIds,
+                ], 422);
+            }
+
+            $syncData = [];
+            foreach ($attachments as $att) {
+                $syncData[$att->id] = ['added_by_user_id' => $user->id];
+            }
+            $draft->apiAttachments()->sync($syncData);
+        }
+
+        $this->audit($request, 'update_draft', 'email_message', $draft->id, 'low',
+            'fields=' . implode(',', array_keys($data)), "draft_id={$draft->id}");
+
+        $draft->load(['emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
+
+        return response()->json([
+            'data'                  => $this->format($draft),
+            'confirmation_required' => true,
+            'send_status'           => 'draft',
+            'message'               => 'Draft updated. Review it in the CRM before sending.',
+        ]);
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $user  = $this->apiUser($request);
+        $draft = EmailMessage::where('user_id', $user->id)
+            ->where('status', 'draft')
+            ->where('direction', 'outbound')
+            ->findOrFail($id);
+
+        $draft->delete();
+
+        $this->audit($request, 'delete_draft', 'email_message', $id, 'low', "draft_id={$id}");
+
+        return response()->json(['deleted' => true, 'id' => $id]);
+    }
+
+    /**
+     * Human-triggered send. Hands the draft to the existing scheduled-send
+     * pipeline (crm:send-scheduled → SendEmailJob) by marking it scheduled for
+     * now. This endpoint never dispatches mail directly. Scope: email:send.
+     */
+    public function send(Request $request, int $id): JsonResponse
+    {
+        $user  = $this->apiUser($request);
+        $draft = EmailMessage::where('user_id', $user->id)
+            ->where('direction', 'outbound')
+            ->findOrFail($id);
+
+        if ($draft->status !== 'draft') {
+            return response()->json([
+                'error'        => 'Only a pending draft can be queued for send.',
+                'current_status' => $draft->status,
+            ], 422);
+        }
+
+        if (empty($draft->to_email)) {
+            return response()->json(['error' => 'Draft has no recipient email address.'], 422);
+        }
+
+        // Block suppressed recipients at send time as a final guard.
+        if (SuppressionList::isSuppressed($user->id, $draft->to_email)) {
+            $this->audit($request, 'send_draft_blocked', 'email_message', $draft->id, 'high',
+                "to={$draft->to_email}", 'blocked: suppressed', 'blocked');
+            return response()->json(['error' => 'Recipient is on the suppression list.'], 422);
+        }
+
+        $draft->status       = 'scheduled';
+        $draft->scheduled_at = now();
+        $draft->save();
+
+        TimelineEvent::create([
+            'user_id'           => $user->id,
+            'tenant_id'         => $user->tenant_id,
+            'timelineable_type' => EmailMessage::class,
+            'timelineable_id'   => $draft->id,
+            'event_type'        => 'send_requested',
+            'description'       => "Send requested via AI integration ({$this->apiClient($request)->source_type}). Subject: {$draft->subject}",
+            'happened_at'       => now(),
+        ]);
+
+        $this->audit($request, 'send_draft', 'email_message', $draft->id, 'high',
+            "to={$draft->to_email}", "draft_id={$draft->id} queued");
+
+        return response()->json([
+            'queued'    => true,
+            'draft_id'  => $draft->id,
+            'notice'    => 'Email queued for send. You will be notified on delivery.',
+        ]);
+    }
+
     public function format(EmailMessage $d): array
     {
         $attachments    = $d->relationLoaded('apiAttachments') ? $d->apiAttachments : collect();

@@ -181,6 +181,48 @@ class OpportunityController extends GptController
         return response()->json(['message' => 'Note added.', 'data' => $this->format($opp)]);
     }
 
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'title'        => 'sometimes|string|max:255',
+            'organization' => 'sometimes|string|max:255',
+            'description'  => 'sometimes|nullable|string|max:5000',
+            'url'          => 'sometimes|nullable|url|max:2048',
+            'status'       => ['sometimes', Rule::in(['draft', 'active', 'waiting_reply', 'replied', 'interview', 'offer', 'rejected', 'withdrawn', 'closed'])],
+            'priority'     => ['sometimes', Rule::in(['low', 'medium', 'high', 'urgent'])],
+            'deadline'     => 'sometimes|nullable|date',
+            'notes'        => 'sometimes|nullable|string|max:5000',
+        ]);
+
+        $user = $this->apiUser($request);
+        $opp  = Opportunity::where('user_id', $user->id)->findOrFail($id);
+
+        if (empty($data)) {
+            return response()->json(['error' => 'No updatable fields provided.'], 422);
+        }
+
+        $opp->fill($data);
+        $opp->last_activity_at = now();
+        $opp->save();
+
+        $this->audit($request, 'update_opportunity', 'opportunity', $opp->id, 'low',
+            'fields=' . implode(',', array_keys($data)), "id={$opp->id}");
+
+        $opp->load('contacts');
+
+        return response()->json(['data' => $this->format($opp, true)]);
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $opp = Opportunity::where('user_id', $this->apiUser($request)->id)->findOrFail($id);
+        $opp->delete();
+
+        $this->audit($request, 'delete_opportunity', 'opportunity', $id, 'medium', "id={$id}");
+
+        return response()->json(['deleted' => true, 'id' => $id]);
+    }
+
     private function format(Opportunity $o, bool $full = false): array
     {
         $contactsLoaded = $o->relationLoaded('contacts');

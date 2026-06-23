@@ -142,6 +142,85 @@ class FollowUpController extends GptController
         return response()->json($response, 201);
     }
 
+    public function index(Request $request): JsonResponse
+    {
+        $request->validate([
+            'status'         => 'nullable|string|max:50',
+            'contact_id'     => 'nullable|integer',
+            'opportunity_id' => 'nullable|integer',
+            'limit'          => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $user  = $this->apiUser($request);
+        $limit = min((int) $request->input('limit', 50), 100);
+
+        $query = FollowUp::where('user_id', $user->id)
+            ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
+
+        if ($status = $request->input('status')) {
+            $query->where('status', $status);
+        }
+        if ($contactId = $request->input('contact_id')) {
+            $query->where('contact_id', $contactId);
+        }
+        if ($opportunityId = $request->input('opportunity_id')) {
+            $query->where('opportunity_id', $opportunityId);
+        }
+
+        $followUps = $query->orderBy('due_at')->limit($limit)->get();
+
+        return response()->json([
+            'data'  => $followUps->map(fn ($f) => $this->format($f)),
+            'count' => $followUps->count(),
+        ]);
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'due_at'            => 'sometimes|date',
+            'notes'             => 'sometimes|nullable|string|max:2000',
+            'suggested_subject' => 'sometimes|nullable|string|max:500',
+            'suggested_body'    => 'sometimes|nullable|string|max:20000',
+            'status'            => 'sometimes|in:pending,sent,cancelled,completed',
+        ]);
+
+        $user     = $this->apiUser($request);
+        $followUp = FollowUp::where('user_id', $user->id)->findOrFail($id);
+
+        if (array_key_exists('due_at', $data)) {
+            $followUp->due_at = $data['due_at'];
+        }
+        if (array_key_exists('suggested_subject', $data)) {
+            $followUp->subject = $data['suggested_subject'];
+        }
+        if (array_key_exists('suggested_body', $data)) {
+            $followUp->body = $data['suggested_body'];
+        }
+        if (array_key_exists('status', $data)) {
+            $followUp->status = $data['status'];
+        }
+
+        $followUp->save();
+
+        $this->audit($request, 'update_followup', 'follow_up', $followUp->id, 'low',
+            'fields=' . implode(',', array_keys($data)), "id={$followUp->id}");
+
+        $followUp->load(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
+
+        return response()->json(['data' => $this->format($followUp)]);
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $followUp = FollowUp::where('user_id', $this->apiUser($request)->id)->findOrFail($id);
+        $followUp->delete();
+
+        $this->audit($request, 'delete_followup', 'follow_up', $id, 'low', "id={$id}");
+
+        return response()->json(['deleted' => true, 'id' => $id]);
+    }
+
     public function format(FollowUp $f): array
     {
         $attachments   = $f->relationLoaded('apiAttachments') ? $f->apiAttachments : collect();
