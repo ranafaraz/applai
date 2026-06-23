@@ -352,7 +352,8 @@ jobs:
             echo "==="
 
             # ── AI agent API e2e smoke tests ──────────────────────────
-            # Script is versioned at scripts/e2e-api.php (avoids YAML quoting issues)
+            # Clear rate-limiter counters so rapid test requests don't 429
+            php artisan cache:clear 2>/dev/null || true
             echo "=== AI Agent API e2e smoke tests ==="
             php /var/www/crm.dexdevs.com/scripts/e2e-api.php 2>&1 | head -80 || true
             echo "==="
