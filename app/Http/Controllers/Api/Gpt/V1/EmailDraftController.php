@@ -389,45 +389,6 @@ class EmailDraftController extends GptController
         ]);
     }
 
-    /**
-     * Send a test copy of a draft to a verification address (Bug 4).
-     * Does NOT update send_status or log as sent. Scope: drafts:read.
-     */
-    public function sendTest(Request $request, int $id): JsonResponse
-    {
-        $data = $request->validate([
-            'test_email' => 'required|email|max:255',
-        ]);
-
-        $user  = $this->apiUser($request);
-        $draft = EmailMessage::where('user_id', $user->id)
-            ->where('direction', 'outbound')
-            ->findOrFail($id);
-
-        $banner   = '<div style="background:#fff3cd;border:2px solid #ffc107;padding:12px 16px;margin-bottom:16px;font-family:sans-serif;font-size:13px;color:#856404;">'
-                  . '⚠️ <strong>TEST EMAIL</strong> — Not sent to original recipient ('
-                  . htmlspecialchars($draft->to_email ?? 'unknown') . ').</div>';
-
-        $body = $banner . $draft->rendered_body;
-        if ($draft->rendered_signature) {
-            $body .= $draft->rendered_signature;
-        }
-
-        \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($draft, $data, $body) {
-            $message->to($data['test_email'])
-                    ->subject('[TEST] ' . ($draft->subject ?? '(no subject)'))
-                    ->html($body);
-        });
-
-        $this->audit($request, 'send_test_email', 'email_message', $draft->id, 'low',
-            "test_to={$data['test_email']}", "draft_id={$draft->id} test sent");
-
-        return response()->json([
-            'message'  => "Test email sent to {$data['test_email']}.",
-            'draft_id' => $draft->id,
-        ]);
-    }
-
     public function format(EmailMessage $d, bool $confirmationRequired = true): array
     {
         $attachments    = $d->relationLoaded('apiAttachments') ? $d->apiAttachments : collect();

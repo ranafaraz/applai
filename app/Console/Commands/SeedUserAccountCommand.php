@@ -4,14 +4,12 @@ namespace App\Console\Commands;
 
 use App\Models\Contact;
 use App\Models\EmailAccount;
-use App\Models\EmailMessage;
 use App\Models\EmailTemplate;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\EmailSendingService;
 use App\Services\ImapSyncService;
 use Illuminate\Console\Command;
-use Throwable;
 
 /**
  * Idempotent setup of a user's CRM account:
@@ -21,14 +19,12 @@ use Throwable;
  *    info@universalphysioclinic.com) exist
  *  - marks the user's preferred default account
  *  - seeds 12 production-quality email templates
- *  - runs SMTP + IMAP tests on every account and persists the result
- *  - with --send-test, sends a real cross-account test email
+ *  - runs SMTP + IMAP connection tests on every account and persists the result
  */
 class SeedUserAccountCommand extends Command
 {
     protected $signature = 'crm:seed-user
         {email : The user email to seed (e.g. ranafarazahmed@gmail.com)}
-        {--send-test : Actually send real test emails between the accounts}
         {--default= : Email address of the account to mark as default}';
 
     protected $description = 'Set up a user account with templates, email accounts, and connection tests';
@@ -51,11 +47,7 @@ class SeedUserAccountCommand extends Command
         $this->seedTemplates($user, $tenantId);
         $this->applyDefault($user);
 
-        $workingAccounts = $this->testConnections($user, $emailService, $imapService);
-
-        if ($this->option('send-test')) {
-            $this->sendCrossAccountTestEmails($user, $tenantId, $workingAccounts, $emailService);
-        }
+        $this->testConnections($user, $emailService, $imapService);
 
         $this->newLine();
         $this->info('Seeding complete.');
@@ -345,51 +337,4 @@ class SeedUserAccountCommand extends Command
         return $working;
     }
 
-    private function sendCrossAccountTestEmails(User $user, ?int $tenantId, array $accounts, EmailSendingService $emailService): void
-    {
-        $this->newLine();
-        $this->line('— Sending real test emails ——————————');
-
-        $personal = $accounts['ranafarazahmed@gmail.com'] ?? null;
-        if (! $personal) {
-            $this->warn('  no working SMTP on Personal Gmail — skipping send tests');
-            return;
-        }
-
-        // Send one cross-account test from personal → each other working account's email
-        foreach ($accounts as $addr => $account) {
-            if ($addr === 'ranafarazahmed@gmail.com') {
-                continue;
-            }
-            $this->sendOne($user, $tenantId, $personal, $addr, $account->from_name ?? $addr, $emailService);
-        }
-
-        // Always send personal → personal to confirm Gmail loop
-        $this->sendOne($user, $tenantId, $personal, $personal->email, $personal->from_name ?? $personal->email, $emailService);
-    }
-
-    private function sendOne(User $user, ?int $tenantId, EmailAccount $fromAccount, string $toEmail, ?string $toName, EmailSendingService $emailService): void
-    {
-        $msg = EmailMessage::create([
-            'tenant_id'        => $tenantId,
-            'user_id'          => $user->id,
-            'email_account_id' => $fromAccount->id,
-            'to_email'         => $toEmail,
-            'to_name'          => $toName ?? $toEmail,
-            'subject'          => "CRM test — {$fromAccount->email} → {$toEmail}",
-            'body'             => "<p>This is an automated end-to-end test from your Personal CRM.</p>" .
-                                  "<p>Sent from <strong>{$fromAccount->email}</strong> at " . now()->toDateTimeString() . " UTC.</p>",
-            'direction'        => 'outbound',
-            'status'           => 'queued',
-        ]);
-
-        try {
-            $ok = $emailService->sendEmail($msg);
-            $ok
-                ? $this->info("  ✓ sent: {$fromAccount->email} → {$toEmail}")
-                : $this->error("  ✗ send failed: {$fromAccount->email} → {$toEmail} ({$msg->fresh()->failure_reason})");
-        } catch (Throwable $e) {
-            $this->error("  ✗ exception {$fromAccount->email} → {$toEmail}: " . $e->getMessage());
-        }
-    }
 }

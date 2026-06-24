@@ -42,6 +42,23 @@ class EmailSendingService
             return true;
         }
 
+        // Hard block: never send emails whose subject starts with a known test prefix.
+        // This is a last-resort guard — test scripts must never reach real SMTP.
+        $testPrefixes = ['[e2e', '[test]', '[formatting test', '[smoke test', '[rate test', 'crm test —'];
+        $subjectLower = strtolower(trim($emailMessage->subject ?? ''));
+        foreach ($testPrefixes as $prefix) {
+            if (str_starts_with($subjectLower, $prefix)) {
+                $reason = 'Sending blocked: subject matches a reserved test prefix. Delete this record.';
+                $this->markFailed($emailMessage, $reason);
+                Log::critical('EmailSendingService: BLOCKED test-subject email — NEVER send test emails to real contacts', [
+                    'email_message_id' => $emailMessage->id,
+                    'subject'          => $emailMessage->subject,
+                    'to_email'         => $emailMessage->to_email,
+                ]);
+                return false;
+            }
+        }
+
         // If the email was previously claimed as 'sending' but the process crashed
         // (e.g. PHP-FPM timeout during sleep/SMTP), reset it so it can be retried.
         if ($emailMessage->status === 'sending' && $emailMessage->updated_at->lt(now()->subMinutes(10))) {

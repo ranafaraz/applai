@@ -132,9 +132,6 @@ Route::prefix('gpt/v1')
         // Send — MCP clients send synchronously; non-MCP queues via scheduled-send pipeline.
         Route::post('email-drafts/{id}/send', [EmailDraftController::class, 'send'])
             ->middleware(['api.scope:email:send', 'throttle:10,1']);
-        // Test render — sends a copy to a verification address without marking as sent.
-        Route::post('email-drafts/{id}/send-test', [EmailDraftController::class, 'sendTest'])
-            ->middleware(['api.scope:drafts:read', 'throttle:10,1']);
 
         // Draft attachments (manage after draft creation)
         Route::get('email-drafts/{draft_id}/attachments', [DraftAttachmentController::class, 'index'])

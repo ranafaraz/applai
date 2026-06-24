@@ -348,14 +348,7 @@ jobs:
             export INFO_DEXDEVS_PASSWORD="${INFO_DEXDEVS_PASSWORD:-Ym+Fc%UfQgsz@2yrZS}"
             export INFO_AWAKEEL_PASSWORD="${INFO_AWAKEEL_PASSWORD:-uVUBm6y%SAQ^6m%WUG}"
             export INFO_UPC_PASSWORD="${INFO_UPC_PASSWORD:-dQrA%nXXtJhajfx&j^}"
-            php artisan crm:seed-user ranafarazahmed@gmail.com --send-test 2>&1 | tail -80 || true
-            echo "==="
-
-            # ── AI agent API e2e smoke tests ──────────────────────────
-            # Clear rate-limiter counters so rapid test requests don't 429
-            php artisan cache:clear 2>/dev/null || true
-            echo "=== AI Agent API e2e smoke tests ==="
-            php /var/www/crm.dexdevs.com/scripts/e2e-api.php 2>&1 | head -80 || true
+            php artisan crm:seed-user ranafarazahmed@gmail.com 2>&1 | tail -80 || true
             echo "==="
 
             set -e
