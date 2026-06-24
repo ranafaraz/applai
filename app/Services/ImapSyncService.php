@@ -43,10 +43,10 @@ class ImapSyncService
         }
 
         try {
-            // Fetch since last_sync_at, or the last 7 days if never synced
+            // Fetch since last_sync_at, or the last 24h if never synced (cap at 7 days max)
             $since = $account->last_sync_at
                 ? $account->last_sync_at->subMinutes(5)  // small overlap to avoid gaps
-                : Carbon::now()->subDays(7);
+                : Carbon::now()->subDays(1);
 
             foreach ($this->syncFolderNames($account) as $folderName) {
                 try {
@@ -63,6 +63,7 @@ class ImapSyncService
                 $messages = $folder->query()
                     ->since($since)
                     ->leaveUnread()
+                    ->limit(100)
                     ->get();
 
                 foreach ($messages as $imapMessage) {
@@ -194,6 +195,7 @@ class ImapSyncService
             'username'      => $account->imap_username,
             'password'      => $account->imap_password,
             'protocol'      => 'imap',
+            'timeout'       => 30,
         ]);
     }
 
