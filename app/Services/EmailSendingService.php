@@ -195,7 +195,10 @@ class EmailSendingService
             $this->markFailed($emailMessage, $reason);
             event(new EmailFailed($emailMessage, $reason));
 
-            return false;
+            // Re-throw so SendEmailJob retries (up to $tries times).
+            // Permanent failures (suppression, limits) returned false above and
+            // never reach this point — only transient SMTP/transport errors throw.
+            throw $e;
         }
     }
 

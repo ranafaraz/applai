@@ -5,7 +5,6 @@ namespace App\Jobs;
 use App\Models\EmailMessage;
 use App\Services\EmailSendingService;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -13,29 +12,18 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class SendEmailJob implements ShouldQueue, ShouldBeUnique
+class SendEmailJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
-     * Maximum number of attempts before the job is considered permanently failed.
+     * Maximum SMTP retry attempts. Permanent failures (suppression, limits)
+     * are caught inside EmailSendingService and never reach this retry counter.
      */
     public int $tries = 3;
 
-    /**
-     * Seconds to wait before retrying after a failure (exponential-friendly base).
-     */
+    /** Seconds between retries (attempt 2 after 60 s, attempt 3 after 120 s). */
     public int $backoff = 60;
-
-    /**
-     * Lock this job for up to 10 minutes per email ID to prevent duplicate dispatches.
-     */
-    public int $uniqueFor = 600;
-
-    public function uniqueId(): string
-    {
-        return 'email_message_' . $this->emailMessage->id;
-    }
 
     public function __construct(
         public readonly EmailMessage $emailMessage,
@@ -56,22 +44,27 @@ class SendEmailJob implements ShouldQueue, ShouldBeUnique
     }
 
     /**
-     * Handle a job failure after all retries are exhausted.
+     * Called after all retry attempts are exhausted.
+     * EmailSendingService already marked the email 'failed' on the last attempt;
+     * this just ensures the failure_reason reflects the final SMTP error and logs it.
      */
     public function failed(?Throwable $exception): void
     {
         Log::error('SendEmailJob: permanently failed after all retries', [
             'email_message_id' => $this->emailMessage->id,
+            'attempts'         => $this->tries,
             'error'            => $exception?->getMessage(),
         ]);
 
-        // Mark as failed if EmailSendingService hasn't already done so
-        if ($this->emailMessage->status !== 'failed') {
-            $this->emailMessage->update([
-                'status'         => 'failed',
-                'failed_at'      => now(),
-                'failure_reason' => $exception?->getMessage() ?? 'Job failed after maximum retries.',
-            ]);
-        }
+        $this->emailMessage->refresh();
+
+        $finalReason = $exception?->getMessage()
+            ?? 'Failed after ' . $this->tries . ' attempts. Check your SMTP credentials.';
+
+        $this->emailMessage->update([
+            'status'         => 'failed',
+            'failed_at'      => now(),
+            'failure_reason' => $finalReason,
+        ]);
     }
 }

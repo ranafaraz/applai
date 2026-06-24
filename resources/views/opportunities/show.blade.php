@@ -59,11 +59,16 @@
                 <p class="text-sm text-slate-600 whitespace-pre-line">{{ $opportunity->description }}</p>
             </div>
         @endif
-        <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-4 gap-4 text-center text-sm">
+        @php $failedEmailCount = $opportunity->emailMessages->where('status', 'failed')->count(); @endphp
+        <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-5 gap-4 text-center text-sm">
             <div><p class="font-semibold text-slate-800">{{ $opportunity->contacts->count() }}</p><p class="text-slate-500 text-xs">Contacts</p></div>
             <div><p class="font-semibold text-slate-800">{{ $sentEmailCount }}</p><p class="text-slate-500 text-xs">Emails Sent</p></div>
             <div><p class="font-semibold text-slate-800">{{ $pendingFollowUpCount }}</p><p class="text-slate-500 text-xs">Pending Follow-ups</p></div>
             <div><p class="font-semibold text-slate-800">{{ $opportunity->documents->count() + $opportunity->apiDocumentLinks->count() }}</p><p class="text-slate-500 text-xs">Documents</p></div>
+            <div>
+                <p class="font-semibold {{ $failedEmailCount > 0 ? 'text-red-600' : 'text-slate-800' }}">{{ $failedEmailCount }}</p>
+                <p class="{{ $failedEmailCount > 0 ? 'text-red-500' : 'text-slate-500' }} text-xs">Failed Emails</p>
+            </div>
         </div>
     </div>
 
@@ -133,6 +138,19 @@
                 <h3 class="text-sm font-semibold text-slate-700">Emails & Follow-ups</h3>
                 <a href="{{ route('compose') }}?opportunity_id={{ $opportunity->id }}" class="text-sm text-indigo-600 hover:underline">+ Compose</a>
             </div>
+            @if($failedEmailCount > 0)
+            <div class="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                <svg class="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+                <div class="text-sm">
+                    <p class="font-semibold text-red-700">{{ $failedEmailCount }} failed email{{ $failedEmailCount > 1 ? 's' : '' }} — action required</p>
+                    <p class="mt-0.5 text-red-600">
+                        {{ $failedEmailCount > 1 ? 'These emails were' : 'This email was' }} not delivered. Check your SMTP credentials in
+                        <a href="{{ route('email-accounts.index') }}" class="underline font-medium">Email Accounts</a>,
+                        then open each failed email and resend.
+                    </p>
+                </div>
+            </div>
+            @endif
             @if($opportunity->emailMessages->isEmpty() && $opportunity->followUps->isEmpty())
                 <p class="text-center text-slate-400 py-8">No emails sent for this opportunity yet.</p>
             @else

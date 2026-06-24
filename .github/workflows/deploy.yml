@@ -80,7 +80,7 @@ jobs:
             {
               printf '[program:crm-queue]\n'
               printf 'process_name=%%(program_name)s_%%(process_num)02d\n'
-              printf "command=$PHP_BIN /var/www/crm.dexdevs.com/artisan queue:work database --sleep=3 --tries=1 --timeout=600 --max-time=3600\n"
+              printf "command=$PHP_BIN /var/www/crm.dexdevs.com/artisan queue:work database --sleep=3 --tries=3 --backoff=60 --timeout=600 --max-time=3600\n"
               printf 'directory=/var/www/crm.dexdevs.com\n'
               printf 'autostart=true\n'
               printf 'autorestart=true\n'
