@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\Gpt\V1\Analytics\AnalyticsController;
 use App\Http\Controllers\Api\Gpt\V1\Tag\TagController;
 use App\Http\Controllers\Api\Gpt\V1\OutreachPipelineController;
 use App\Http\Controllers\Api\Gpt\V1\BulkCreateController;
+use App\Http\Controllers\Api\Gpt\V1\SchedulerStatusController;
 use App\Http\Controllers\Api\Social\AiDraftController as SocialAiDraftController;
 use Illuminate\Support\Facades\Route;
 
@@ -132,6 +133,11 @@ Route::prefix('gpt/v1')
         // Send — MCP clients send synchronously; non-MCP queues via scheduled-send pipeline.
         Route::post('email-drafts/{id}/send', [EmailDraftController::class, 'send'])
             ->middleware(['api.scope:email:send', 'throttle:10,1']);
+        // Schedule a draft for future delivery / cancel a scheduled send.
+        Route::post('email-drafts/{id}/schedule', [EmailDraftController::class, 'schedule'])
+            ->middleware(['api.scope:email:send', 'throttle:10,1']);
+        Route::post('email-drafts/{id}/unschedule', [EmailDraftController::class, 'unschedule'])
+            ->middleware(['api.scope:email:send', 'throttle:10,1']);
 
         // Draft attachments (manage after draft creation)
         Route::get('email-drafts/{draft_id}/attachments', [DraftAttachmentController::class, 'index'])
@@ -158,6 +164,13 @@ Route::prefix('gpt/v1')
             ->middleware(['api.scope:followups:update', 'throttle:20,1']);
         Route::delete('follow-ups/{id}', [FollowUpController::class, 'destroy'])
             ->middleware('api.scope:followups:delete');
+        // Manual immediate send of a pending follow-up.
+        Route::post('follow-ups/{id}/send', [FollowUpController::class, 'send'])
+            ->middleware(['api.scope:email:send', 'throttle:10,1']);
+
+        // Scheduler status (due counts, next run times, recent failures).
+        Route::get('scheduler/status', [SchedulerStatusController::class, 'show'])
+            ->middleware('api.scope:scheduler:read');
 
         // Replies
         Route::get('replies/recent', [ReplyController::class, 'recent'])

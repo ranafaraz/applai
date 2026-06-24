@@ -67,6 +67,7 @@ class FollowUpService
         $dueFollowUps = FollowUp::query()
             ->with(['opportunity', 'contact', 'emailAccount', 'emailMessage'])
             ->where('status', 'pending')
+            ->where('auto_send', true)
             ->where('due_at', '<=', now())
             ->get();
 
@@ -122,6 +123,29 @@ class FollowUpService
                 'status'        => 'cancelled',
                 'cancel_reason' => 'contact_cancelled',
             ]);
+    }
+
+    /**
+     * Manually send a single follow-up immediately, regardless of due_at.
+     * Returns ['success' => true] or ['success' => false, 'error' => '...'].
+     */
+    public function sendFollowUpNow(FollowUp $followUp): array
+    {
+        if ($followUp->status !== 'pending') {
+            return ['success' => false, 'error' => "Follow-up is not pending (current: {$followUp->status})."];
+        }
+
+        try {
+            $followUp->load(['opportunity', 'contact', 'emailAccount', 'emailMessage']);
+            $this->processSingleFollowUp($followUp, 3);
+            return ['success' => true];
+        } catch (Throwable $e) {
+            Log::error('FollowUpService: sendFollowUpNow failed', [
+                'follow_up_id' => $followUp->id,
+                'error'        => $e->getMessage(),
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
     }
 
     // -------------------------------------------------------------------------

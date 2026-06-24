@@ -27,6 +27,7 @@ class FollowUp extends Model
         'sent_at',
         'status',
         'cancel_reason',
+        'auto_send',
         'subject',
         'body',
         'email_signature_id',
@@ -39,6 +40,7 @@ class FollowUp extends Model
             'due_at'           => 'datetime',
             'sent_at'          => 'datetime',
             'follow_up_number' => 'integer',
+            'auto_send'        => 'boolean',
         ];
     }
 

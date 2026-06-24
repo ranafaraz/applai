@@ -11,6 +11,7 @@ use App\Models\EmailSignature;
 use App\Models\Opportunity;
 use App\Models\SuppressionList;
 use App\Models\TimelineEvent;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -386,6 +387,76 @@ class EmailDraftController extends GptController
             'queued'   => true,
             'draft_id' => $draft->id,
             'notice'   => 'Email queued for send. You will be notified on delivery.',
+        ]);
+    }
+
+    /**
+     * Schedule a draft for future delivery. Sets status='scheduled' and
+     * scheduled_at to the requested UTC time. crm:send-scheduled picks it up
+     * when scheduled_at <= now(). Scope: email:send.
+     */
+    public function schedule(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'send_at' => 'required|date|after:now',
+        ]);
+
+        $user  = $this->apiUser($request);
+        $draft = EmailMessage::where('user_id', $user->id)
+            ->where('direction', 'outbound')
+            ->where('status', 'draft')
+            ->findOrFail($id);
+
+        if (empty($draft->to_email)) {
+            return response()->json(['error' => 'Draft has no recipient email address.'], 422);
+        }
+
+        if (SuppressionList::isSuppressed($user->id, $draft->to_email)) {
+            return response()->json(['error' => 'Recipient is on the suppression list.'], 422);
+        }
+
+        $sendAt = Carbon::parse($data['send_at'])->utc();
+
+        $draft->update([
+            'status'       => 'scheduled',
+            'scheduled_at' => $sendAt,
+        ]);
+
+        $this->audit($request, 'schedule_draft', 'email_message', $draft->id, 'medium',
+            "send_at={$sendAt->toISOString()}", "draft_id={$draft->id} scheduled");
+
+        return response()->json([
+            'message'      => 'Email scheduled. It will be dispatched automatically at the scheduled time.',
+            'draft_id'     => $draft->id,
+            'scheduled_at' => $draft->scheduled_at?->toISOString(),
+            'status'       => 'scheduled',
+        ]);
+    }
+
+    /**
+     * Unschedule a previously scheduled draft, reverting it to draft status.
+     * Scope: email:send.
+     */
+    public function unschedule(Request $request, int $id): JsonResponse
+    {
+        $user  = $this->apiUser($request);
+        $draft = EmailMessage::where('user_id', $user->id)
+            ->where('direction', 'outbound')
+            ->where('status', 'scheduled')
+            ->findOrFail($id);
+
+        $draft->update([
+            'status'       => 'draft',
+            'scheduled_at' => null,
+        ]);
+
+        $this->audit($request, 'unschedule_draft', 'email_message', $draft->id, 'low',
+            "draft_id={$id}", "draft_id={$draft->id} unscheduled");
+
+        return response()->json([
+            'message'  => 'Email unscheduled. Draft is ready for review or rescheduling.',
+            'draft_id' => $draft->id,
+            'status'   => 'draft',
         ]);
     }
 

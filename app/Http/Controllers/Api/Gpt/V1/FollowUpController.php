@@ -9,6 +9,7 @@ use App\Models\FollowUp;
 use App\Models\InboxMessage;
 use App\Models\Opportunity;
 use App\Models\SuppressionList;
+use App\Services\FollowUpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -169,14 +170,53 @@ class FollowUpController extends GptController
         return $this->listResponse($followUps->map(fn ($f) => $this->format($f))->values(), $limit);
     }
 
+    /**
+     * Manually send a pending follow-up immediately, regardless of due_at.
+     * Scope: email:send + followups:update.
+     */
+    public function send(Request $request, int $id): JsonResponse
+    {
+        $user     = $this->apiUser($request);
+        $followUp = FollowUp::where('user_id', $user->id)
+            ->with(['opportunity', 'contact', 'emailAccount', 'emailMessage', 'emailSignature', 'apiAttachments'])
+            ->findOrFail($id);
+
+        if ($followUp->status !== 'pending') {
+            return response()->json([
+                'error'          => 'Only a pending follow-up can be sent.',
+                'current_status' => $followUp->status,
+            ], 422);
+        }
+
+        $result = app(FollowUpService::class)->sendFollowUpNow($followUp);
+
+        if (! $result['success']) {
+            $this->audit($request, 'send_followup', 'follow_up', $followUp->id, 'high',
+                "id={$id}", 'failed: ' . $result['error'], 'failed');
+            return response()->json(['error' => $result['error']], 500);
+        }
+
+        $this->audit($request, 'send_followup', 'follow_up', $followUp->id, 'high',
+            "id={$id}", 'sent manually', 'success');
+
+        $followUp->refresh();
+        $followUp->load(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
+
+        return response()->json([
+            'message' => 'Follow-up sent successfully.',
+            'data'    => $this->format($followUp),
+        ]);
+    }
+
     public function update(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
             'due_at'            => 'sometimes|date',
+            'auto_send'         => 'sometimes|boolean',
             'notes'             => 'sometimes|nullable|string|max:2000',
             'suggested_subject' => 'sometimes|nullable|string|max:500',
             'suggested_body'    => 'sometimes|nullable|string|max:20000',
-            'status'            => 'sometimes|in:pending,sent,cancelled,completed',
+            'status'            => 'sometimes|in:pending,sent,cancelled,skipped',
         ]);
 
         $user     = $this->apiUser($request);
@@ -184,6 +224,9 @@ class FollowUpController extends GptController
 
         if (array_key_exists('due_at', $data)) {
             $followUp->due_at = $data['due_at'];
+        }
+        if (array_key_exists('auto_send', $data)) {
+            $followUp->auto_send = $data['auto_send'];
         }
         if (array_key_exists('suggested_subject', $data)) {
             $followUp->subject = $data['suggested_subject'];
@@ -230,7 +273,10 @@ class FollowUpController extends GptController
             'due_at'                       => $f->due_at?->toISOString(),
             'status'                       => $f->status,
             'send_status'                  => $f->status,
+            'auto_send'                    => (bool) $f->auto_send,
             'subject'                      => $f->subject,
+            'sent_at'                      => $f->sent_at?->toISOString(),
+            'cancel_reason'                => $f->cancel_reason,
             'signature_id'                 => $f->email_signature_id,
             'signature_name'               => $f->emailSignature?->name,
             'rendered_signature'           => $f->rendered_signature,
