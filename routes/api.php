@@ -582,3 +582,7 @@ Route::prefix('tags/v1')
         Route::delete('tags/{id}', [TagController::class, 'destroy'])
             ->middleware('api.scope:tags:write');
     });
+
+
+// Mobile API (/api/app/v1) — Applai Flutter app. Per-user Sanctum auth.
+require __DIR__ . '/app_api.php';
