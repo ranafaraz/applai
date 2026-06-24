@@ -536,10 +536,14 @@ class ImapSyncService
         }
 
         try {
+            // Always normalise to UTC so Eloquent serialises the UTC digits,
+            // not the local-time digits from the email's Date header offset.
+            // Without ->utc(), a header like "08:58 -0500" would store "08:58"
+            // in the TIMESTAMP column instead of the correct "13:58 UTC".
             if ($date instanceof \Carbon\Carbon) {
-                return $date;
+                return $date->utc();
             }
-            return Carbon::parse((string) $date);
+            return Carbon::parse((string) $date)->utc();
         } catch (Throwable) {
             return null;
         }
