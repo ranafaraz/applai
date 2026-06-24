@@ -44,5 +44,6 @@ Route::prefix('app/v1')->group(function () {
         // appended here as each milestone lands.
         require __DIR__ . '/app_api_opportunities.php';
         require __DIR__ . '/app_api_contacts.php';
+        require __DIR__ . '/app_api_drafts.php';
     });
 });

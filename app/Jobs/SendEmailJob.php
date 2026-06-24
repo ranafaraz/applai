@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\EmailMessage;
 use App\Services\EmailSendingService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -12,7 +13,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class SendEmailJob implements ShouldQueue
+class SendEmailJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -25,6 +26,16 @@ class SendEmailJob implements ShouldQueue
      * Seconds to wait before retrying after a failure (exponential-friendly base).
      */
     public int $backoff = 60;
+
+    /**
+     * Lock this job for up to 10 minutes per email ID to prevent duplicate dispatches.
+     */
+    public int $uniqueFor = 600;
+
+    public function uniqueId(): string
+    {
+        return 'email_message_' . $this->emailMessage->id;
+    }
 
     public function __construct(
         public readonly EmailMessage $emailMessage,

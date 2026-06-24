@@ -94,6 +94,22 @@ class EmailMessageController extends Controller
         $ccList  = $this->parseAddresses($request->input('cc'));
         $bccList = $this->parseAddresses($request->input('bcc'));
 
+        // Guard against double-submit: reject if an identical outbound email
+        // to the same recipient for the same opportunity was created in the last 60 s.
+        $recentDuplicate = EmailMessage::where('user_id', auth()->id())
+            ->where('to_email', $data['to_email'])
+            ->where('subject', $data['subject'])
+            ->where('direction', 'outbound')
+            ->when(! empty($data['opportunity_id']), fn ($q) => $q->where('opportunity_id', $data['opportunity_id']))
+            ->where('created_at', '>=', now()->subSeconds(60))
+            ->exists();
+
+        if ($recentDuplicate) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['duplicate' => 'An identical email to this recipient was just created. Wait a moment before submitting again.']);
+        }
+
         $message = EmailMessage::create($this->tenantData([
             'email_account_id' => $data['email_account_id'],
             'contact_id'       => $data['contact_id'] ?? null,

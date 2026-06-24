@@ -42,6 +42,21 @@ class EmailSendingService
             return true;
         }
 
+        // If the email was previously claimed as 'sending' but the process crashed
+        // (e.g. PHP-FPM timeout during sleep/SMTP), reset it so it can be retried.
+        if ($emailMessage->status === 'sending' && $emailMessage->updated_at->lt(now()->subMinutes(10))) {
+            Log::warning('EmailSendingService: resetting email stuck in sending state', [
+                'email_message_id' => $emailMessage->id,
+                'stuck_since'      => $emailMessage->updated_at->toIso8601String(),
+            ]);
+            EmailMessage::query()
+                ->whereKey($emailMessage->id)
+                ->where('status', 'sending')
+                ->where('updated_at', '<', now()->subMinutes(10))
+                ->update(['status' => 'draft']);
+            $emailMessage->refresh();
+        }
+
         $claimed = EmailMessage::query()
             ->whereKey($emailMessage->id)
             ->whereNotIn('status', ['sent', 'sending'])
@@ -89,10 +104,10 @@ class EmailSendingService
             }
         }
 
-        // 4. Apply per-account send delay with jitter to avoid regularity detection
-        $this->applyAccountSendDelay($account);
-
         try {
+            // 4. Apply per-account send delay inside try/catch so a timeout or crash
+            //    here marks the email as failed instead of leaving it stuck in 'sending'.
+            $this->applyAccountSendDelay($account);
             // 5. Build Symfony Mailer transport from account credentials
             $transport = $this->buildTransport($account);
             $mailer    = new Mailer($transport);

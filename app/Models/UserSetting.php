@@ -16,7 +16,11 @@ class UserSetting extends Model
         'notify_on_reply',
         'notify_on_bounce',
         'onboarding_dismissed_at',
+        'openai_api_key',
+        'openai_model',
     ];
+
+    protected $hidden = ['openai_api_key'];
 
     protected function casts(): array
     {
@@ -25,6 +29,7 @@ class UserSetting extends Model
             'notify_on_reply'         => 'boolean',
             'notify_on_bounce'        => 'boolean',
             'onboarding_dismissed_at' => 'datetime',
+            'openai_api_key'          => 'encrypted',
         ];
     }
 

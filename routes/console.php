@@ -11,6 +11,9 @@ Schedule::command('crm:process-follow-ups')->everyThirtyMinutes();
 // Queue scheduled emails every 5 minutes
 Schedule::command('crm:send-scheduled')->everyFiveMinutes();
 
+// Reset emails stuck in 'sending' (crashed worker/timeout) every 5 minutes
+Schedule::command('crm:unstick-sending-emails')->everyFiveMinutes();
+
 // Reset daily email send counters at midnight
 Schedule::command('crm:reset-daily-counters')->dailyAt('00:00');
 

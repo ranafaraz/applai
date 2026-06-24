@@ -89,6 +89,25 @@ class EmailDraftController extends GptController
             $renderedSignature = $signature->renderHtml();
         }
 
+        // Guard against duplicate creation: reject if same subject+recipient+opportunity
+        // was created by this user in the last 60 seconds (covers MCP agent loops).
+        $recentDuplicate = EmailMessage::where('user_id', $user->id)
+            ->where('to_email', $contact->email)
+            ->where('subject', $data['subject'])
+            ->where('direction', 'outbound')
+            ->when(! empty($data['opportunity_id']), fn ($q) => $q->where('opportunity_id', $data['opportunity_id']))
+            ->where('created_at', '>=', now()->subSeconds(60))
+            ->first();
+
+        if ($recentDuplicate) {
+            $this->audit($request, 'create_draft_duplicate', 'email_message', $recentDuplicate->id, 'medium',
+                "contact_id={$contact->id}", 'blocked: duplicate within 60s', 'blocked');
+            return response()->json([
+                'error'            => 'An identical draft for this recipient was created less than 60 seconds ago. Use the existing draft or wait before creating another.',
+                'existing_draft_id'=> $recentDuplicate->id,
+            ], 409);
+        }
+
         // Resolve sender account
         $emailAccount = EmailAccount::where('user_id', $user->id)
             ->where('is_active', true)
@@ -313,9 +332,23 @@ class EmailDraftController extends GptController
                 SendEmailJob::dispatchSync($draft);
                 $draft->refresh();
             } catch (\Throwable $e) {
+                $this->audit($request, 'send_draft', 'email_message', $draft->id, 'high',
+                    "to={$draft->to_email}", 'exception: ' . $e->getMessage(), 'failed');
                 return response()->json([
                     'error'    => 'Email send failed: ' . $e->getMessage(),
                     'draft_id' => $draft->id,
+                ], 500);
+            }
+
+            // Check the actual outcome — dispatchSync won't throw if sendEmail() returned false.
+            if ($draft->status !== 'sent') {
+                $reason = $draft->failure_reason ?? 'SMTP error or send timed out. Check your email account settings.';
+                $this->audit($request, 'send_draft', 'email_message', $draft->id, 'high',
+                    "to={$draft->to_email}", "send failed: {$reason}", 'failed');
+                return response()->json([
+                    'error'          => 'Email failed to send: ' . $reason,
+                    'draft_id'       => $draft->id,
+                    'current_status' => $draft->status,
                 ], 500);
             }
 

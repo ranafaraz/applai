@@ -55,6 +55,7 @@ class EmailMessage extends Model
         'bounced_at',
         'bounce_type',
         'unsubscribed_at',
+        'ai_generated',
     ];
 
     protected function casts(): array
@@ -73,6 +74,7 @@ class EmailMessage extends Model
             'click_count'      => 'integer',
             'bounced_at'       => 'datetime',
             'unsubscribed_at'  => 'datetime',
+            'ai_generated'     => 'boolean',
         ];
     }
 
