@@ -131,7 +131,7 @@ class LinkedInPostsService
 
     private function buildCommentary(SocialPost $post): string
     {
-        $body = $post->post_body ?? '';
+        $body = LinkedInTextHelper::htmlToLinkedInText($post->post_body ?? '');
         $tags = $post->hashtagString();
         return $tags ? "{$body}\n\n{$tags}" : $body;
     }

@@ -319,16 +319,32 @@ class PostController extends Controller
             return back()->with('error', 'No publish targets selected. Add at least one connected account or WordPress site.');
         }
 
+        $results = [];
         try {
             foreach ($targets as $target) {
-                $publisher->publish($target);
+                $results[] = $publisher->publish($target);
             }
-
-            return redirect()->route('social-studio.published')->with('success', 'Post publishing completed for selected targets.');
         } catch (\Throwable $e) {
             report($e);
             return back()->with('error', 'Publish failed: ' . $e->getMessage());
         }
+
+        $failed  = collect($results)->filter(fn ($t) => $t->status === 'failed');
+        $success = collect($results)->filter(fn ($t) => $t->status === 'published');
+
+        if ($failed->isEmpty()) {
+            return redirect()->route('social-studio.published')->with('success', 'Post published successfully to all targets.');
+        }
+
+        $errors = $failed
+            ->map(fn ($t) => ucfirst($t->provider_key) . ': ' . ($t->error_message ?: 'Unknown error'))
+            ->join('; ');
+
+        if ($success->isEmpty()) {
+            return back()->with('error', "Publish failed — {$errors}");
+        }
+
+        return back()->with('error', "Published to {$success->count()} target(s), but {$failed->count()} failed — {$errors}");
     }
 
     private function syncTargets(SocialPost $post, Request $request, ?string $scheduledAt): void

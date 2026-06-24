@@ -80,7 +80,7 @@
                     @endif
                     <span class="text-[11px] text-slate-400">{{ strtoupper($post->post_type) }}</span>
                 </div>
-                <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ Str::limit($post->post_body, 120) }}</p>
+                <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ Str::limit(strip_tags($post->post_body), 120) }}</p>
                 <div class="flex items-center gap-3 mt-2 text-xs text-slate-400">
                     @if($post->scheduled_at)
                         <span>Scheduled: {{ $post->scheduled_at->setTimezone($post->timezone_display)->format('d M Y H:i') }} {{ $post->timezone_display }}</span>

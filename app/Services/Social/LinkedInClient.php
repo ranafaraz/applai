@@ -17,7 +17,7 @@ class LinkedInClient
 
     private function version(): string
     {
-        return config('services.linkedin.api_version', '202412');
+        return config('services.linkedin.api_version', '202506');
     }
 
     private function headers(string $token): array
@@ -232,6 +232,16 @@ class LinkedInClient
         }
         if ($status === 429) {
             throw new LinkedInRateLimitException("{$context} — rate limited (429).");
+        }
+        if ($status === 426) {
+            $code = json_decode($response->body(), true)['code'] ?? '';
+            if ($code === 'NONEXISTENT_VERSION') {
+                throw new LinkedInPermanentException(
+                    "LinkedIn API version expired — update LINKEDIN_API_VERSION in .env " .
+                    "(current: {$this->version()}). Use a current YYYYMM value such as 202506."
+                );
+            }
+            throw new LinkedInPermanentException("{$context} — upgrade required (426): {$body}");
         }
 
         throw new \RuntimeException("{$context} — provider error ({$status}): {$body}");
