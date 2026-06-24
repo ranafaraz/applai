@@ -212,10 +212,10 @@ class ImapSyncService
     {
         $folders = ['INBOX'];
 
-        if (str_contains(strtolower($account->imap_host), 'gmail.com')) {
+        // For Gmail, also check All Mail (catches replies that bypass INBOX).
+        // Skip on first-ever sync to avoid pulling a massive backlog.
+        if (str_contains(strtolower($account->imap_host), 'gmail.com') && $account->last_sync_at !== null) {
             $folders[] = '[Gmail]/All Mail';
-            $folders[] = '[Gmail]/Spam';
-            $folders[] = '[Gmail]/Junk';
         }
 
         return $folders;

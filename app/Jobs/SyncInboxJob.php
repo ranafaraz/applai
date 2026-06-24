@@ -17,14 +17,14 @@ class SyncInboxJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
-     * Allow up to 10 minutes for a full IMAP sync.
+     * Allow 90 seconds per sync — the IMAP socket timeout is 30s × 3 Gmail folders.
      */
-    public int $timeout = 600;
+    public int $timeout = 90;
 
     /**
-     * Only attempt once – if the connection fails the scheduler will retry on next run.
+     * Retry once on transient failures; scheduler re-syncs every 15 min anyway.
      */
-    public int $tries = 1;
+    public int $tries = 2;
 
     public function __construct(
         public readonly EmailAccount $emailAccount,
