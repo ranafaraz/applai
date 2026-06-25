@@ -37,6 +37,20 @@ class HandleReplyReceived implements ShouldQueue
         // 1. Cancel pending follow-ups
         $this->imapSyncService->cancelFollowUpsOnReply($inboxMessage);
 
+        // Resolve the reply's effective time. A reply that is matched to an
+        // outbound send physically cannot have arrived before that send, so if
+        // the email Date header was malformed or timezone-stripped (landing the
+        // reply before the message it answers) we clamp to the send instant.
+        // This keeps the opportunity timeline correctly ordered regardless of
+        // the sender's Date-header quirks. See ImapSyncService::parseDate().
+        $arrivedAt = $inboxMessage->received_at ?? now();
+        if ($inboxMessage->matched_outbound_id) {
+            $sentAt = $inboxMessage->matchedOutbound?->sent_at;
+            if ($sentAt && $arrivedAt->lt($sentAt)) {
+                $arrivedAt = $sentAt;
+            }
+        }
+
         $meta = [
             'inbox_message_id' => $inboxMessage->id,
             'from_email'       => $inboxMessage->from_email,
@@ -52,7 +66,7 @@ class HandleReplyReceived implements ShouldQueue
                 'timelineable_type' => Opportunity::class,
                 'event_type'        => 'reply_received',
                 'description'       => "Reply received from {$inboxMessage->from_email}: \"{$inboxMessage->subject}\"",
-                'happened_at'       => $inboxMessage->received_at ?? now(),
+                'happened_at'       => $arrivedAt,
                 'metadata'          => array_merge($meta, [
                     'opportunity_id' => $inboxMessage->matched_opportunity_id,
                 ]),
@@ -80,7 +94,7 @@ class HandleReplyReceived implements ShouldQueue
                 'timelineable_type' => Contact::class,
                 'event_type'        => 'reply_received',
                 'description'       => "Reply received from {$inboxMessage->from_email}: \"{$inboxMessage->subject}\"",
-                'happened_at'       => $inboxMessage->received_at ?? now(),
+                'happened_at'       => $arrivedAt,
                 'metadata'          => array_merge($meta, [
                     'contact_id' => $inboxMessage->matched_contact_id,
                 ]),
@@ -88,7 +102,7 @@ class HandleReplyReceived implements ShouldQueue
 
             // 5. Update last_contacted_at on the contact
             Contact::where('id', $inboxMessage->matched_contact_id)
-                ->update(['last_contacted_at' => $inboxMessage->received_at ?? now()]);
+                ->update(['last_contacted_at' => $arrivedAt]);
         }
 
         // 6. Dispatch CRM notifications

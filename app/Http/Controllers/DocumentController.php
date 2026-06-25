@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDocumentRequest;
 use App\Models\Document;
+use App\Models\Opportunity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -34,7 +35,11 @@ class DocumentController extends Controller
 
     public function create(): View
     {
-        return view('documents.create');
+        $opportunities = $this->tenantQuery(Opportunity::class)
+            ->orderByDesc('created_at')
+            ->get(['id', 'title']);
+
+        return view('documents.create', compact('opportunities'));
     }
 
     public function store(StoreDocumentRequest $request): RedirectResponse
