@@ -1,0 +1,47 @@
+name: Deploy MCP Server
+
+# Provisions and (re)starts the remote MCP Streamable-HTTP server on the VPS and
+# wires nginx to proxy /mcp + the OAuth endpoints to it. Safe to re-run.
+# The actual logic lives in scripts/provision-mcp.sh (so heredocs are not
+# mangled by YAML block-scalar indentation). OAuth client credentials are passed
+# as dispatch inputs so they are never committed to the repo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_id:
+        description: 'OAuth client id for the connector'
+        required: true
+      client_secret:
+        description: 'OAuth client secret for the connector'
+        required: true
+      token_secret:
+        description: 'HMAC secret used to sign issued access/refresh tokens'
+        required: true
+
+jobs:
+  deploy-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Provision MCP server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          IN_CLIENT_ID: ${{ github.event.inputs.client_id }}
+          IN_CLIENT_SECRET: ${{ github.event.inputs.client_secret }}
+          IN_TOKEN_SECRET: ${{ github.event.inputs.token_secret }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          envs: IN_CLIENT_ID,IN_CLIENT_SECRET,IN_TOKEN_SECRET
+          script: |
+            set -e
+            cd /var/www/crm.dexdevs.com
+            git config --global --add safe.directory /var/www/crm.dexdevs.com
+            git fetch origin main
+            git reset --hard origin/main
+            chmod +x scripts/provision-mcp.sh
+            IN_CLIENT_ID="$IN_CLIENT_ID" IN_CLIENT_SECRET="$IN_CLIENT_SECRET" IN_TOKEN_SECRET="$IN_TOKEN_SECRET" \
+              bash scripts/provision-mcp.sh
