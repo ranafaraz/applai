@@ -166,14 +166,26 @@ curl -i -X POST https://crm.dexdevs.com/mcp \
 
 ### Add to Claude (custom connector)
 
-In **Settings → Connectors → Add custom connector**, paste:
+The production server at `crm.dexdevs.com` runs in **OAuth** mode (single-owner:
+`/oauth/authorize` issues a code immediately, no login page). In
+**Settings → Connectors → Add custom connector → Advanced settings**:
 
-```
-https://crm.dexdevs.com/mcp
-```
+| Field | Value |
+|-------|-------|
+| Name | `Applai CRM` |
+| Remote MCP server URL | `https://crm.dexdevs.com/mcp` |
+| OAuth Client ID | the configured `MCP_OAUTH_CLIENT_ID` |
+| OAuth Client Secret | the configured `MCP_OAUTH_CLIENT_SECRET` |
 
-When prompted for authentication, supply the bearer token
-(`MCP_BEARER_TOKEN`, which defaults to your `CRM_API_KEY`).
+Claude discovers `/.well-known/oauth-authorization-server`, runs the
+authorization-code + PKCE flow, and connects. Provisioning is handled by
+`scripts/provision-mcp.sh` (run via the **Deploy MCP Server** workflow or
+directly over SSH); it runs the Node server under supervisor on
+`127.0.0.1:3000` and proxies `/mcp` + `/oauth/*` + the OAuth `.well-known`
+paths through Apache.
+
+For a header-only bearer setup instead (no OAuth), leave the OAuth env unset and
+present `Authorization: Bearer <MCP_BEARER_TOKEN>`.
 
 ## Available Tools
 

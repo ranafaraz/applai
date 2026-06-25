@@ -127,71 +127,94 @@ echo "--- local health ---"
 curl -s --max-time 8 http://127.0.0.1:3000/health || { echo "LOCAL HEALTH FAILED"; tail -40 /var/log/crm-mcp.log 2>/dev/null; }
 echo
 
-echo "=================== NGINX WIRING (safe) ==================="
-mkdir -p /etc/nginx/snippets
-cat > /etc/nginx/snippets/crm-mcp.conf <<'NG'
-# MCP Streamable HTTP + OAuth — proxied to the Node adapter on loopback.
+echo "=================== WEB-SERVER WIRING (safe) ==================="
+if command -v apache2ctl >/dev/null 2>&1 || command -v apachectl >/dev/null 2>&1; then
+  # ---- Apache (this is the prod stack) ----------------------------------
+  echo "web server: Apache"
+  a2enmod proxy proxy_http headers >/dev/null 2>&1 || true
+
+  PROXY_CONF=/etc/apache2/conf-available/crm-mcp-proxy.conf
+  cat > "$PROXY_CONF" <<'AP'
+# MCP Streamable HTTP + OAuth -> Node adapter on loopback. Included inside the
+# crm.dexdevs.com :443 VirtualHost. Keep these prefixes off the Laravel app.
+ProxyPreserveHost On
+SetEnv proxy-nobuffering 1
+ProxyPass        /mcp http://127.0.0.1:3000/mcp
+ProxyPassReverse /mcp http://127.0.0.1:3000/mcp
+ProxyPass        /oauth/ http://127.0.0.1:3000/oauth/
+ProxyPassReverse /oauth/ http://127.0.0.1:3000/oauth/
+ProxyPass        /.well-known/oauth-authorization-server http://127.0.0.1:3000/.well-known/oauth-authorization-server
+ProxyPassReverse /.well-known/oauth-authorization-server http://127.0.0.1:3000/.well-known/oauth-authorization-server
+ProxyPass        /.well-known/oauth-protected-resource http://127.0.0.1:3000/.well-known/oauth-protected-resource
+ProxyPassReverse /.well-known/oauth-protected-resource http://127.0.0.1:3000/.well-known/oauth-protected-resource
+ProxyPass        /.well-known/openid-configuration http://127.0.0.1:3000/.well-known/openid-configuration
+ProxyPassReverse /.well-known/openid-configuration http://127.0.0.1:3000/.well-known/openid-configuration
+AP
+
+  # Find the SSL (:443) vhost file for the domain. NOTE: sites-enabled entries
+  # are symlinks into sites-available; `grep -r` skips symlinks while recursing,
+  # so iterate explicit globs (grep follows a symlink given as an arg) and
+  # resolve to the real file with readlink -f before editing.
+  APACHE_SSL_VHOST=""
+  for f in /etc/apache2/sites-enabled/*.conf /etc/apache2/sites-available/*.conf; do
+    [ -f "$f" ] || continue
+    if grep -q "${DOMAIN}" "$f" && grep -qE ":443|SSLEngine[[:space:]]+on" "$f"; then
+      APACHE_SSL_VHOST=$(readlink -f "$f"); break
+    fi
+  done
+  echo "apache ssl vhost: ${APACHE_SSL_VHOST:-NONE FOUND}"
+
+  if [ -z "$APACHE_SSL_VHOST" ]; then
+    echo "!! Could not locate the Apache :443 vhost for ${DOMAIN}."
+    echo "!! MCP runs on 127.0.0.1:3000 but is NOT public. Add this inside the :443 vhost:"
+    echo "!!   Include /etc/apache2/conf-available/crm-mcp-proxy.conf"
+  elif grep -q "crm-mcp-proxy.conf" "$APACHE_SSL_VHOST"; then
+    echo "Include already present in $APACHE_SSL_VHOST"
+    apache2ctl configtest && systemctl reload apache2 && echo "apache reloaded"
+  else
+    BACKUP="${APACHE_SSL_VHOST}.bak.$(date +%s)"
+    cp "$APACHE_SSL_VHOST" "$BACKUP"
+    echo "backed up $APACHE_SSL_VHOST -> $BACKUP"
+    # Insert the Include just before the first </VirtualHost> close tag.
+    awk 'BEGIN{done=0} /<\/VirtualHost>/ && !done {print "    Include /etc/apache2/conf-available/crm-mcp-proxy.conf"; done=1} {print}' "$BACKUP" > "$APACHE_SSL_VHOST"
+    if apache2ctl configtest 2>/tmp/apache_test.out; then
+      systemctl reload apache2
+      echo "apache config valid; reloaded with MCP proxy."
+    else
+      echo "!! apache configtest FAILED — reverting to backup. CRM site untouched."
+      cat /tmp/apache_test.out
+      cp "$BACKUP" "$APACHE_SSL_VHOST"
+      apache2ctl configtest && systemctl reload apache2 || true
+    fi
+  fi
+
+elif command -v nginx >/dev/null 2>&1; then
+  # ---- nginx fallback ---------------------------------------------------
+  echo "web server: nginx"
+  mkdir -p /etc/nginx/snippets
+  cat > /etc/nginx/snippets/crm-mcp.conf <<'NG'
 location = /mcp {
     proxy_pass http://127.0.0.1:3000/mcp;
     proxy_http_version 1.1;
     proxy_set_header Connection '';
     proxy_buffering off;
-    proxy_cache off;
     proxy_read_timeout 3600s;
     proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header Authorization $http_authorization;
 }
-location ^~ /oauth/ {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Authorization $http_authorization;
-}
-location ^~ /.well-known/oauth-authorization-server {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-}
-location ^~ /.well-known/oauth-protected-resource {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-}
-location = /.well-known/openid-configuration {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-}
+location ^~ /oauth/ { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header Authorization $http_authorization; }
+location ^~ /.well-known/oauth-authorization-server { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; }
+location ^~ /.well-known/oauth-protected-resource { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; }
+location = /.well-known/openid-configuration { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; }
 NG
-
-if [ -z "$NGINX_SITE" ]; then
-  echo "!! Could not locate the nginx server file for ${DOMAIN}."
-  echo "!! MCP server is running on 127.0.0.1:3000 but is NOT yet public."
-  echo "!! Add 'include /etc/nginx/snippets/crm-mcp.conf;' inside the 443 server block manually."
-elif grep -q "crm-mcp.conf" "$NGINX_SITE"; then
-  echo "include already present in $NGINX_SITE"
-  nginx -t && systemctl reload nginx && echo "nginx reloaded"
-else
-  BACKUP="${NGINX_SITE}.bak.$(date +%s)"
-  cp "$NGINX_SITE" "$BACKUP"
-  echo "backed up $NGINX_SITE -> $BACKUP"
-  # Insert the include immediately after the first ssl_certificate line, which
-  # only exists inside the TLS (443) server block.
-  if grep -q "ssl_certificate " "$NGINX_SITE"; then
-    awk 'BEGIN{done=0} {print} /ssl_certificate / && !done {print "    include /etc/nginx/snippets/crm-mcp.conf;"; done=1}' "$BACKUP" > "$NGINX_SITE"
-    if nginx -t 2>/tmp/nginx_test.out; then
-      systemctl reload nginx
-      echo "nginx config valid; reloaded with MCP include."
-    else
-      echo "!! nginx -t FAILED — reverting to backup. CRM site untouched."
-      cat /tmp/nginx_test.out
-      cp "$BACKUP" "$NGINX_SITE"
-      nginx -t && systemctl reload nginx || true
-    fi
-  else
-    echo "!! No ssl_certificate line found in $NGINX_SITE — not editing automatically."
-    echo "!! Add 'include /etc/nginx/snippets/crm-mcp.conf;' to the 443 block manually."
+  if [ -n "$NGINX_SITE" ] && ! grep -q "crm-mcp.conf" "$NGINX_SITE" && grep -q "ssl_certificate " "$NGINX_SITE"; then
+    BACKUP="${NGINX_SITE}.bak.$(date +%s)"; cp "$NGINX_SITE" "$BACKUP"
+    awk 'BEGIN{d=0} {print} /ssl_certificate / && !d {print "    include /etc/nginx/snippets/crm-mcp.conf;"; d=1}' "$BACKUP" > "$NGINX_SITE"
+    nginx -t && systemctl reload nginx && echo "nginx reloaded" || { cp "$BACKUP" "$NGINX_SITE"; nginx -t && systemctl reload nginx; }
   fi
+else
+  echo "!! Neither Apache nor nginx found — cannot expose the MCP server publicly."
 fi
 
 echo "=================== PUBLIC SELF-CHECK ==================="
