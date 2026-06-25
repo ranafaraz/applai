@@ -55,8 +55,33 @@
             </div>
         </div>
         @if($opportunity->description)
+            @once
+                <style>
+                    .opp-desc{line-height:1.55}
+                    .opp-desc h1{font-size:1.05rem;font-weight:700;color:#1e293b;margin:.7rem 0 .35rem}
+                    .opp-desc h2{font-size:1rem;font-weight:700;color:#1e293b;margin:.7rem 0 .35rem}
+                    .opp-desc h3{font-size:.95rem;font-weight:600;color:#334155;margin:.55rem 0 .25rem}
+                    .opp-desc p{margin:.4rem 0}
+                    .opp-desc ul{list-style:disc;margin:.4rem 0 .4rem 1.25rem}
+                    .opp-desc ol{list-style:decimal;margin:.4rem 0 .4rem 1.25rem}
+                    .opp-desc li{margin:.15rem 0}
+                    .opp-desc strong{color:#1e293b;font-weight:600}
+                    .opp-desc a{color:#4f46e5;text-decoration:underline;word-break:break-all}
+                    .opp-desc code{background:#f1f5f9;padding:.05rem .3rem;border-radius:.25rem;font-size:.85em}
+                    .opp-desc hr{margin:.6rem 0;border-color:#e2e8f0}
+                </style>
+            @endonce
+            @php
+                $desc = $opportunity->description;
+                // Render as Markdown when the text contains Markdown markers; otherwise keep plain line breaks.
+                $hasMarkdown = (bool) preg_match('/(^|\n)\s*#{1,6}\s|(^|\n)\s*[-*]\s+|(^|\n)\s*\d+\.\s+|\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)/', $desc);
+            @endphp
             <div class="mt-4 pt-4 border-t border-slate-100">
-                <p class="text-sm text-slate-600 whitespace-pre-line">{{ $opportunity->description }}</p>
+                @if($hasMarkdown)
+                    <div class="opp-desc text-sm text-slate-600">{!! \Illuminate\Support\Str::markdown($desc, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
+                @else
+                    <p class="text-sm text-slate-600 whitespace-pre-line">{{ $desc }}</p>
+                @endif
             </div>
         @endif
         @php $failedEmailCount = $opportunity->emailMessages->where('status', 'failed')->count(); @endphp

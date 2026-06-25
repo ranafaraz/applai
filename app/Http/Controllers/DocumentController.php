@@ -47,16 +47,33 @@ class DocumentController extends Controller
         $data = $request->validated();
 
         $file = $request->file('file');
+        $originalName = $file->getClientOriginalName();
+        $opportunityId = $data['opportunity_id'] ?? null;
+
+        // De-dupe: replace any existing document with the same file name already linked to the same opportunity.
+        if ($opportunityId) {
+            $existing = $this->tenantQuery(Document::class)
+                ->where('opportunity_id', $opportunityId)
+                ->where('file_name', $originalName)
+                ->get();
+            foreach ($existing as $dupe) {
+                if ($dupe->file_path && Storage::disk('local')->exists($dupe->file_path)) {
+                    Storage::disk('local')->delete($dupe->file_path);
+                }
+                $dupe->delete();
+            }
+        }
+
         $path = $file->store('documents', 'local');
 
         $document = Document::create($this->tenantData([
             'name'          => $data['name'],
             'description'   => $data['description'] ?? null,
             'document_type' => $data['document_type'] ?? null,
-            'opportunity_id' => $data['opportunity_id'] ?? null,
+            'opportunity_id' => $opportunityId,
             'contact_id'    => $data['contact_id'] ?? null,
             'file_path'     => $path,
-            'file_name'     => $file->getClientOriginalName(),
+            'file_name'     => $originalName,
             'file_size'     => $file->getSize(),
             'mime_type'     => $file->getMimeType(),
         ]));
