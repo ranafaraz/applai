@@ -131,8 +131,13 @@ export const crm = {
     enqueueWrite(`${BASE_URL}${path}`, { method: 'DELETE' }, opts),
 
   // Social Studio API (/api/social/v1).
+  getSocial: (path: string) => rawFetch(`${SOCIAL_BASE}${path}`, {}),
   postSocial: (path: string, data: unknown, opts: WriteOpts = {}) =>
     enqueueWrite(`${SOCIAL_BASE}${path}`, { method: 'POST', body: JSON.stringify(data) }, opts),
+  patchSocial: (path: string, data: unknown, opts: WriteOpts = {}) =>
+    enqueueWrite(`${SOCIAL_BASE}${path}`, { method: 'PATCH', body: JSON.stringify(data) }, opts),
+  deleteSocial: (path: string, opts: WriteOpts = {}) =>
+    enqueueWrite(`${SOCIAL_BASE}${path}`, { method: 'DELETE' }, opts),
 
   // Proposals API (/api/proposals/v1).
   postProposals: (path: string, data: unknown, opts: WriteOpts = {}) =>

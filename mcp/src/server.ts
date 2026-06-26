@@ -393,6 +393,130 @@ export function createCrmServer(): Server {
           },
         },
       },
+      {
+        name: 'crm_list_linkedin_accounts',
+        description: 'List the connected LinkedIn accounts (Social Studio). Use this to discover the author_member_urn / default account before creating or publishing a post.',
+        inputSchema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'crm_create_linkedin_post',
+        description: 'Create a LinkedIn post draft (Social Studio). Returns the new post with its id. For the MCP client the draft is auto-approved, so it can be published or scheduled immediately via crm_publish_linkedin_post. Typical flow: crm_create_linkedin_post → (optional media) → crm_publish_linkedin_post.',
+        inputSchema: {
+          type: 'object',
+          required: ['post_body', 'post_type'],
+          properties: {
+            post_body:          { type: 'string', description: 'Post commentary text (max 3000 chars)' },
+            post_type:          { type: 'string', enum: ['text', 'article_link', 'image'], description: 'Type of post' },
+            title_internal:     { type: 'string', description: 'Internal-only title/label (max 255)' },
+            topic:              { type: 'string', description: 'Optional topic label (max 255)' },
+            first_comment_body: { type: 'string', description: 'Optional first comment posted under the post (max 1250)' },
+            article_url:        { type: 'string', description: 'URL for an article_link post (max 2000)' },
+            hashtags_json:      { type: 'array', items: { type: 'string' }, description: 'Hashtags (without the leading #)' },
+            scheduled_at:       { type: 'string', description: 'Optional future datetime to schedule for (use crm_publish_linkedin_post action=schedule to actually schedule)' },
+            timezone_display:   { type: 'string', description: 'IANA timezone label (max 64)' },
+            author_member_urn:  { type: 'string', description: 'Author member URN; defaults to the default connected account (max 100)' },
+          },
+        },
+      },
+      {
+        name: 'crm_list_linkedin_posts',
+        description: 'List LinkedIn posts (Social Studio), most recently updated first. Optionally filter by status (draft, approved, scheduled, publishing, published, failed, cancelled).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', description: 'Optional status filter' },
+          },
+        },
+      },
+      {
+        name: 'crm_get_linkedin_post',
+        description: 'Get a single LinkedIn post with full detail (body, hashtags, article_url, author_member_urn, provider URN/URL).',
+        inputSchema: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'number', description: 'LinkedIn post ID' } },
+        },
+      },
+      {
+        name: 'crm_update_linkedin_post',
+        description: 'Update an editable LinkedIn post draft (Social Studio). Only posts in an editable status (idea, draft, ready_for_review, failed) can be updated. Changing the body bumps the content version and invalidates pending confirmations.',
+        inputSchema: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id:                 { type: 'number', description: 'LinkedIn post ID' },
+            post_body:          { type: 'string', description: 'New commentary text (max 3000)' },
+            post_type:          { type: 'string', enum: ['text', 'article_link', 'image'] },
+            title_internal:     { type: 'string', description: 'Internal-only title/label (max 255)' },
+            topic:              { type: 'string', description: 'Topic label (max 255)' },
+            first_comment_body: { type: 'string', description: 'First comment body (max 1250)' },
+            article_url:        { type: 'string', description: 'Article URL (max 2000)' },
+            hashtags_json:      { type: 'array', items: { type: 'string' }, description: 'Hashtags (without #)' },
+            scheduled_at:       { type: 'string', description: 'Future datetime' },
+            timezone_display:   { type: 'string', description: 'IANA timezone label (max 64)' },
+          },
+        },
+      },
+      {
+        name: 'crm_delete_linkedin_post',
+        description: 'Delete an editable LinkedIn post draft (Social Studio). Only drafts in an editable status can be deleted; published posts cannot be deleted this way.',
+        inputSchema: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'number', description: 'LinkedIn post ID' } },
+        },
+      },
+      {
+        name: 'crm_linkedin_provider_status',
+        description: 'Get the live status of a published LinkedIn post directly from LinkedIn (exists_on_linkedin, lifecycle_state, post_url). Requires the post to have a LinkedIn URN.',
+        inputSchema: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'number', description: 'LinkedIn post ID' } },
+        },
+      },
+      {
+        name: 'crm_upload_linkedin_media',
+        description: 'Add an image to the CRM media library from a public URL, returning an asset_id for use with crm_attach_linkedin_media. (The MCP path uses image_url; binary/base64 file upload is not supported here.)',
+        inputSchema: {
+          type: 'object',
+          required: ['image_url', 'alt_text'],
+          properties: {
+            image_url:     { type: 'string', description: 'Public URL of the image the server will download (max 2000)' },
+            alt_text:      { type: 'string', description: 'Accessibility alt text (required, max 500)' },
+            title:         { type: 'string', description: 'Optional title (max 255)' },
+            rights_status: { type: 'string', enum: ['owned', 'licensed', 'generated', 'unknown'], description: 'Image rights status' },
+            auto_approve:  { type: 'boolean', description: 'Approve the asset immediately so it can be uploaded to LinkedIn' },
+          },
+        },
+      },
+      {
+        name: 'crm_attach_linkedin_media',
+        description: 'Attach an existing CRM media asset to a LinkedIn post (image posts). Use crm_upload_linkedin_media first to obtain an asset_id.',
+        inputSchema: {
+          type: 'object',
+          required: ['post_id', 'asset_id'],
+          properties: {
+            post_id:           { type: 'number', description: 'LinkedIn post ID' },
+            asset_id:          { type: 'number', description: 'Media asset ID' },
+            display_order:     { type: 'number', description: 'Ordering among attached media (default 0)' },
+            is_featured:       { type: 'boolean', description: 'Mark as the featured image' },
+            alt_text_override: { type: 'string', description: 'Override alt text for this post (max 1000)' },
+          },
+        },
+      },
+      {
+        name: 'crm_upload_media_to_linkedin',
+        description: 'Push an attached, approved CRM media asset up to LinkedIn so it can be referenced when the post is published. Returns the linkedin_media_urn. Requires the asset to be approved and a connected LinkedIn account.',
+        inputSchema: {
+          type: 'object',
+          required: ['post_id', 'asset_id'],
+          properties: {
+            post_id:  { type: 'number', description: 'LinkedIn post ID' },
+            asset_id: { type: 'number', description: 'Media asset ID' },
+          },
+        },
+      },
 
       // -------------------------------------------------------------------
       // Reads
@@ -793,6 +917,50 @@ export function createCrmServer(): Server {
           result = await crm.postSocial(`/linkedin/posts/${a.id}/publish`, body, idem);
           break;
         }
+
+        case 'crm_list_linkedin_accounts':
+          result = await crm.getSocial('/linkedin/accounts');
+          break;
+
+        case 'crm_create_linkedin_post':
+          result = await crm.postSocial('/linkedin/posts', payload, idem);
+          break;
+
+        case 'crm_list_linkedin_posts':
+          result = await crm.getSocial('/linkedin/posts?' + qs(a));
+          break;
+
+        case 'crm_get_linkedin_post':
+          result = await crm.getSocial(`/linkedin/posts/${a.id}`);
+          break;
+
+        case 'crm_update_linkedin_post': {
+          const { id, ...fields } = payload;
+          result = await crm.patchSocial(`/linkedin/posts/${a.id}`, fields, idem);
+          break;
+        }
+
+        case 'crm_delete_linkedin_post':
+          result = await crm.deleteSocial(`/linkedin/posts/${a.id}`, idem);
+          break;
+
+        case 'crm_linkedin_provider_status':
+          result = await crm.getSocial(`/linkedin/posts/${a.id}/provider-status`);
+          break;
+
+        case 'crm_upload_linkedin_media':
+          result = await crm.postSocial('/media', payload, idem);
+          break;
+
+        case 'crm_attach_linkedin_media': {
+          const { post_id, ...fields } = payload;
+          result = await crm.postSocial(`/linkedin/posts/${a.post_id}/media`, fields, idem);
+          break;
+        }
+
+        case 'crm_upload_media_to_linkedin':
+          result = await crm.postSocial(`/linkedin/posts/${a.post_id}/media/${a.asset_id}/upload-to-linkedin`, {}, idem);
+          break;
 
         // -------------------------------------------------------------------
         // Reads (new)
