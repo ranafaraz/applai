@@ -39,6 +39,10 @@
 <div class="max-w-3xl" x-data="composeForm()">
     <div class="mb-4"><a href="{{ route('emails.show', $email) }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to email</a></div>
 
+    @if(!empty($lintIssues))
+        <div class="mb-4">@include('partials._email-lint', ['lintIssues' => $lintIssues])</div>
+    @endif
+
     <div class="bg-white border border-slate-200 rounded-xl p-6">
         <form method="POST" action="{{ route('emails.update', $email) }}" enctype="multipart/form-data" class="space-y-4" @submit="syncBody">
             @csrf

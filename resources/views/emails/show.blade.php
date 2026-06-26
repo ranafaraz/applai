@@ -10,6 +10,25 @@
 @section('content')
 <div class="max-w-3xl">
     <div class="mb-4"><a href="{{ route('emails.index') }}" class="text-sm text-indigo-600 hover:text-indigo-800">&larr; Back to Outbox</a></div>
+
+    @if(session('success'))
+        <div class="mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{{ session('error') }}</div>
+    @endif
+    @if($errors->any())
+        <div class="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+                @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+            </ul>
+        </div>
+    @endif
+
+    @if(!empty($lintIssues))
+        <div class="mb-4">@include('partials._email-lint', ['lintIssues' => $lintIssues])</div>
+    @endif
+
     <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
         <div class="flex items-start justify-between gap-4">
             <div>
@@ -39,9 +58,11 @@
         @endif
         <div class="pt-4 border-t border-slate-100">
             @php
-                // Detect whether the body is HTML or plain text. Plain text gets
-                // newline-converted before rendering so it doesn't collapse.
-                $body = (string) $email->body;
+                // Render exactly what the recipient sees: stored body with the
+                // signature composed in once (so MCP drafts show their signature
+                // and web drafts don't double it). Plain text gets newline-
+                // converted so it doesn't collapse into one line.
+                $body = $email->composedBody();
                 $looksHtml = preg_match('/<\/?[a-z][\s\S]*>/i', $body) === 1;
                 $rendered  = $looksHtml ? $body : nl2br(e($body), false);
             @endphp
@@ -123,17 +144,53 @@
                 </div>
             </div>
         @endif
-        <div class="flex gap-3 pt-4 border-t border-slate-100">
-            @if(in_array($email->status, ['draft','scheduled']))
-                <a href="{{ route('emails.edit', $email) }}" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-                    {{ $email->status === 'draft' ? 'Edit Draft' : 'Edit Scheduled' }}
-                </a>
-                <form method="POST" action="{{ route('emails.destroy', $email) }}" onsubmit="return confirm('Cancel/delete this email?')">
-                    @csrf @method('DELETE')
-                    <button type="submit" class="bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium px-4 py-2 rounded-lg">{{ $email->status === 'draft' ? 'Delete Draft' : 'Cancel Scheduled' }}</button>
+        @if(in_array($email->status, ['draft','scheduled']))
+            @php
+                $hasDanger = collect($lintIssues ?? [])->contains(fn ($i) => ($i['level'] ?? '') === 'danger');
+                $confirmMsg = $hasDanger
+                    ? 'There are unresolved issues flagged above. Send anyway?'
+                    : 'Send this email now to ' . $email->to_email . '?';
+            @endphp
+            <div class="pt-4 border-t border-slate-100" x-data="{ scheduling: false }">
+                @if($email->status === 'scheduled' && $email->scheduled_at)
+                    <p class="text-sm text-slate-500 mb-3">Scheduled for <strong class="text-slate-700">{{ $email->scheduled_at->format('M j, Y g:i A') }}</strong>.</p>
+                @endif
+                <div class="flex flex-wrap gap-3">
+                    {{-- Send now --}}
+                    <form method="POST" action="{{ route('emails.quick-send', $email) }}" onsubmit="return confirm(@js($confirmMsg))">
+                        @csrf
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                            Send Now
+                        </button>
+                    </form>
+                    {{-- Toggle inline schedule --}}
+                    <button type="button" @click="scheduling = !scheduling" class="bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-medium px-4 py-2 rounded-lg">
+                        {{ $email->status === 'scheduled' ? 'Reschedule' : 'Schedule' }}
+                    </button>
+                    {{-- Edit --}}
+                    <a href="{{ route('emails.edit', $email) }}" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+                        {{ $email->status === 'draft' ? 'Edit Draft' : 'Edit Scheduled' }}
+                    </a>
+                    {{-- Delete / cancel --}}
+                    <form method="POST" action="{{ route('emails.destroy', $email) }}" onsubmit="return confirm('Cancel/delete this email?')">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium px-4 py-2 rounded-lg">{{ $email->status === 'draft' ? 'Delete Draft' : 'Cancel Scheduled' }}</button>
+                    </form>
+                </div>
+                {{-- Inline schedule picker --}}
+                <form method="POST" action="{{ route('emails.quick-schedule', $email) }}" x-show="scheduling" x-cloak class="mt-3 flex flex-wrap items-end gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Send at</label>
+                        <input type="datetime-local" name="scheduled_at" required
+                               value="{{ optional($email->scheduled_at)->format('Y-m-d\TH:i') }}"
+                               class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">Save Schedule</button>
                 </form>
-            @endif
-        </div>
+            </div>
+        @endif
     </div>
 </div>
 @endsection

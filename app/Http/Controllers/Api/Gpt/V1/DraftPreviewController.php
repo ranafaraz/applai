@@ -17,12 +17,13 @@ class DraftPreviewController extends GptController
             ->with(['contact', 'opportunity', 'emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion'])
             ->findOrFail($id);
 
-        // Rendered body = raw body + snapshot signature (if captured) or live render
+        // Rendered body = recipient-facing body, signature composed in exactly
+        // once (composedBody strips any inline copy first, so it can't double).
         $renderedSignature = $draft->rendered_signature
             ?? $draft->emailSignature?->renderHtml()
             ?? null;
 
-        $renderedBody = $draft->body . ($renderedSignature ?? '');
+        $renderedBody = $draft->composedBody();
 
         // Collect attachment validation issues
         $attachmentWarnings = $draft->apiAttachments

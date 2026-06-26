@@ -137,10 +137,14 @@ class EmailSendingService
                 $emailMessage->to_name ?? $emailMessage->to_email
             ));
             $mime->subject($emailMessage->subject);
-            // Open/click tracking markup goes into the outgoing MIME only;
-            // the stored body stays clean.
-            $mime->html($this->tracking->prepareHtml($emailMessage, $emailMessage->body));
-            $mime->text(strip_tags($emailMessage->body));
+            // Compose the recipient-facing body once: stored body (signature
+            // stripped) + the message's signature appended exactly once. This
+            // guarantees the signature is never missing or doubled regardless
+            // of how the draft was created. Tracking markup goes into the
+            // outgoing MIME only; the stored body stays clean.
+            $wireBody = $emailMessage->composedBody();
+            $mime->html($this->tracking->prepareHtml($emailMessage, $wireBody));
+            $mime->text(strip_tags($wireBody));
 
             $messageId = $emailMessage->message_id
                 ? self::normalizeMessageId($emailMessage->message_id)

@@ -197,6 +197,11 @@ Route::middleware(['auth', 'tenant_active'])->group(function () {
     // requires a verified address; the rest of the app stays usable.
     Route::middleware('verified')->group(function () {
         Route::get('compose', [EmailMessageController::class, 'compose'])->name('compose');
+        // Quick actions straight from the draft detail page (no full edit form).
+        Route::post('emails/{email}/send', [EmailMessageController::class, 'quickSend'])
+            ->name('emails.quick-send')->whereNumber('email');
+        Route::post('emails/{email}/schedule', [EmailMessageController::class, 'quickSchedule'])
+            ->name('emails.quick-schedule')->whereNumber('email');
         Route::resource('emails', EmailMessageController::class)->except(['create'])->whereNumber('email');
     });
 

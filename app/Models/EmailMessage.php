@@ -136,6 +136,26 @@ class EmailMessage extends Model
         return $this->belongsTo(EmailSignature::class);
     }
 
+    /**
+     * The body exactly as it should appear to the recipient: the stored body
+     * with any embedded signature block removed, then the message's signature
+     * appended exactly once. Single source of truth for both the outgoing MIME
+     * and the on-screen preview — so the signature can never be missing
+     * (MCP-created drafts keep it separate) or doubled (web drafts inline it).
+     */
+    public function composedBody(): string
+    {
+        $body = EmailSignature::stripSignatureHtml((string) $this->body);
+
+        $signature = $this->rendered_signature;
+        if (! $signature && $this->email_signature_id) {
+            $this->loadMissing('emailSignature');
+            $signature = $this->emailSignature?->renderHtml();
+        }
+
+        return $body . (string) $signature;
+    }
+
     public function linkClicks(): HasMany
     {
         return $this->hasMany(EmailLinkClick::class);

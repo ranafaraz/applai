@@ -114,7 +114,7 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_create_email_draft',
-        description: 'Create an email draft. MCP drafts are auto-approved and bypass the confirmation gate — nothing is sent until crm_send_draft is called. IDEMPOTENT: if an identical draft (same subject + recipient + opportunity) was created within the last 60 seconds, the existing draft is returned (duplicate=true in response, HTTP 200) — use the returned draft_id without retrying. SIGNATURE: the saved default signature is auto-appended unless you pass suppress_signature=true or specify a signature_id. Do NOT include the signature text in the body — it doubles up. Use crm_list_signatures to see available signatures.',
+        description: 'Create an email draft. MCP drafts are auto-approved and bypass the confirmation gate — nothing is sent until crm_send_draft is called. IDEMPOTENT: if an identical draft (same subject + recipient + opportunity) was created within the last 60 seconds, the existing draft is returned (duplicate=true in response, HTTP 200) — use the returned draft_id without retrying. SIGNATURE: the saved default signature is auto-appended unless you pass suppress_signature=true or specify a signature_id, and it already provides the closing. Do NOT include the signature text in the body, and do NOT write your own sign-off/closing (no "Best, <name>", "Regards, <name>", "Sincerely, <name>") — that creates two closings. End the body with your last real sentence. FORMATTING: write the body as 2-4 SHORT paragraphs separated by a BLANK LINE (\\n\\n) — never as one long block, or it renders as a wall of text. Use plain ASCII punctuation (hyphen "-", straight quotes); avoid em/en dashes and smart quotes which can corrupt into "�". Use crm_list_signatures to see available signatures.',
         inputSchema: {
           type: 'object',
           required: ['contact_id', 'subject', 'body'],
@@ -122,7 +122,7 @@ export function createCrmServer(): Server {
             contact_id:          { type: 'number' },
             opportunity_id:      { type: 'number' },
             subject:             { type: 'string' },
-            body:                { type: 'string' },
+            body:                { type: 'string', description: 'Plain text in 2-4 short paragraphs separated by a blank line (\\n\\n). No sign-off/closing and no signature — those are added automatically. ASCII punctuation only.' },
             draft_type:          { type: 'string', enum: ['initial_outreach', 'follow_up', 'thank_you', 'general'] },
             tone:                { type: 'string', enum: ['professional', 'casual', 'formal'] },
             signature_id:        { type: 'number', description: 'Use a specific saved signature instead of the default' },

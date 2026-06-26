@@ -43,7 +43,13 @@ class RichText
         'svg', 'math', 'noscript', 'template',
     ];
 
-    private const ALLOWED_STYLE_PROPS = ['color', 'background-color', 'text-align'];
+    private const ALLOWED_STYLE_PROPS = [
+        'color', 'background-color', 'text-align',
+        // Layout-only props so tightened signature/email spacing survives
+        // sanitization. Values are still filtered for url()/expression/js.
+        'margin', 'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
+        'padding', 'line-height',
+    ];
 
     /**
      * Render a stored value as safe display HTML. Handles Quill HTML, legacy
@@ -92,6 +98,41 @@ class RichText
         }
 
         return $value;
+    }
+
+    /**
+     * Normalize an outbound email body into properly-structured HTML so it
+     * never reaches the recipient as a wall of text. Plain text becomes real
+     * paragraphs (blank line → <p>, single newline → <br>); HTML is left
+     * structurally intact. Any embedded signature block is stripped — the
+     * signature is tracked separately and appended once at render/send time.
+     */
+    public static function formatEmailBody(?string $body): string
+    {
+        $body = \App\Models\EmailSignature::stripSignatureHtml((string) $body);
+        if (trim($body) === '') {
+            return '';
+        }
+
+        // Already HTML — keep its block structure, just clean it.
+        if (preg_match('/<\/?[a-z][\s\S]*>/i', $body)) {
+            return self::collapseEmpty(self::sanitize($body));
+        }
+
+        // Plain text → paragraphs. A blank line separates paragraphs; a single
+        // newline becomes a soft break. Without this, the HTML part of the
+        // email collapses every newline into a space (the wall-of-text bug).
+        $blocks = preg_split('/\r?\n\s*\r?\n+/', trim($body)) ?: [];
+        $html = '';
+        foreach ($blocks as $block) {
+            $block = trim($block);
+            if ($block === '') {
+                continue;
+            }
+            $html .= '<p>' . nl2br(e($block), false) . '</p>';
+        }
+
+        return self::collapseEmpty(self::sanitize($html));
     }
 
     /**

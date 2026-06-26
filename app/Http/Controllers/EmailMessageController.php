@@ -311,7 +311,65 @@ class EmailMessageController extends Controller
 
         $this->authorize('view', $email);
 
-        return view('emails.show', compact('email'));
+        $lintIssues = in_array($email->status, ['draft', 'scheduled'], true)
+            ? \App\Support\EmailLint::check($email)
+            : [];
+
+        return view('emails.show', compact('email', 'lintIssues'));
+    }
+
+    public function quickSend(Request $request, EmailSendingService $emailService, int $id): RedirectResponse
+    {
+        $email = $this->tenantQuery(EmailMessage::class)->findOrFail($id);
+        $this->authorize('update', $email);
+
+        if (! in_array($email->status, ['draft', 'scheduled'], true)) {
+            return redirect()->route('emails.show', $email->id)
+                ->with('error', 'Only drafts and scheduled emails can be sent.');
+        }
+        if (! $email->email_account_id) {
+            return redirect()->route('emails.edit', $email->id)
+                ->with('error', 'Choose a sending account before this email can go out.');
+        }
+
+        try {
+            $ok = $emailService->sendEmail($email);
+        } catch (Throwable $e) {
+            $email->update(['status' => 'failed', 'failure_reason' => $e->getMessage()]);
+            return redirect()->route('emails.show', $email->id)
+                ->with('error', 'Send failed: ' . $e->getMessage());
+        }
+
+        return redirect()->route('emails.show', $email->id)
+            ->with($ok ? 'success' : 'error', $ok ? 'Email sent.' : 'Send failed: ' . ($email->fresh()->failure_reason ?? 'unknown error'));
+    }
+
+    public function quickSchedule(Request $request, int $id): RedirectResponse
+    {
+        $email = $this->tenantQuery(EmailMessage::class)->findOrFail($id);
+        $this->authorize('update', $email);
+
+        if (! in_array($email->status, ['draft', 'scheduled'], true)) {
+            return redirect()->route('emails.show', $email->id)
+                ->with('error', 'Only drafts and scheduled emails can be scheduled.');
+        }
+
+        $data = $request->validate([
+            'scheduled_at' => 'required|date|after:now',
+        ], [], ['scheduled_at' => 'send time']);
+
+        if (! $email->email_account_id) {
+            return redirect()->route('emails.edit', $email->id)
+                ->with('error', 'Choose a sending account before scheduling.');
+        }
+
+        $email->update([
+            'scheduled_at' => $data['scheduled_at'],
+            'status'       => 'scheduled',
+        ]);
+
+        return redirect()->route('emails.show', $email->id)
+            ->with('success', 'Scheduled for ' . $email->scheduled_at->format('M j, Y g:i A') . '.');
     }
 
     public function edit(Request $request, int $id): View
@@ -346,6 +404,8 @@ class EmailMessageController extends Controller
 
         [$signatures, $defaultSignatureId, $signaturePayload] = $this->signatureOptions();
 
+        $lintIssues = \App\Support\EmailLint::check($email);
+
         return view('emails.edit', compact(
             'email',
             'emailAccounts',
@@ -354,7 +414,8 @@ class EmailMessageController extends Controller
             'opportunities',
             'signatures',
             'defaultSignatureId',
-            'signaturePayload'
+            'signaturePayload',
+            'lintIssues'
         ));
     }
 

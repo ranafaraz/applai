@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\EmailAccount;
 use App\Models\EmailMessage;
 use App\Models\EmailSignature;
+use App\Support\RichText;
 use App\Models\Opportunity;
 use App\Models\SuppressionList;
 use App\Models\TimelineEvent;
@@ -82,6 +83,9 @@ class EmailDraftController extends GptController
 
         // Bug 2: strip AI-generated "Subject:/From:/To:" header lines from body
         $data['body'] = $this->sanitizeDraftBody($data['body'], $data['subject']);
+        // Structure the body into real paragraphs so plain-text drafts don't
+        // reach the recipient as a single wall-of-text block.
+        $data['body'] = RichText::formatEmailBody($data['body']);
 
         // Verify contact ownership
         $contact = Contact::where('user_id', $user->id)->findOrFail($data['contact_id']);
@@ -250,6 +254,17 @@ class EmailDraftController extends GptController
             $response['warning'] = 'Some attachments contain sensitive documents. Confirm the recipient has requested these before sending.';
         }
 
+        // Surface content-quality issues (wall of text, duplicate sign-off,
+        // garbled characters, placeholders) so the agent can fix the draft
+        // before sending instead of mailing something unprofessional.
+        $contentIssues = \App\Support\EmailLint::check($draft);
+        if (! empty($contentIssues)) {
+            $response['content_warnings'] = array_map(
+                fn ($i) => $i['title'] . ' — ' . $i['detail'],
+                $contentIssues,
+            );
+        }
+
         return response()->json($response, 201);
     }
 
@@ -277,7 +292,7 @@ class EmailDraftController extends GptController
         if (array_key_exists('body', $data)) {
             // Bug 2: sanitize body on update too
             $subject = $draft->subject;
-            $draft->body    = $this->sanitizeDraftBody($data['body'], $subject);
+            $draft->body    = RichText::formatEmailBody($this->sanitizeDraftBody($data['body'], $subject));
             $draft->subject = $subject;
         }
 

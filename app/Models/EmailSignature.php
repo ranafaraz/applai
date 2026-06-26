@@ -48,9 +48,9 @@ class EmailSignature extends Model
 
     public function renderHtml(): string
     {
-        $body = trim((string) $this->body);
+        $body = self::tightenSpacing(trim((string) $this->body));
         $image = $this->image_url
-            ? '<div><img src="' . e($this->image_url) . '" alt="' . e($this->name) . '" style="max-width:220px;height:auto;"></div>'
+            ? '<div style="margin-top:6px"><img src="' . e($this->image_url) . '" alt="' . e($this->name) . '" style="max-width:220px;height:auto;"></div>'
             : '';
 
         return '<div><br></div><div data-email-signature="1" data-email-signature-id="' . e((string) $this->id) . '">' . $body . $image . '</div>';
@@ -58,6 +58,27 @@ class EmailSignature extends Model
 
     public static function stripSignatureHtml(?string $html): string
     {
-        return preg_replace('/\s*<div><br><\/div><div data-email-signature="1"[^>]*>.*$/s', '', (string) $html) ?? (string) $html;
+        // Match the signature block (with or without the leading spacer div) to
+        // the end of the string, so old and new rendered formats both strip.
+        return preg_replace('/\s*(?:<div><br><\/div>\s*)?<div[^>]*\bdata-email-signature="1"[^>]*>.*$/is', '', (string) $html) ?? (string) $html;
+    }
+
+    /**
+     * Collapse the default paragraph margins that make signatures render with
+     * big, unprofessional gaps between lines in email clients. Inline styles
+     * are required because email clients ignore <style> blocks.
+     */
+    private static function tightenSpacing(string $html): string
+    {
+        return preg_replace_callback('/<p\b([^>]*)>/i', function (array $m): string {
+            $attrs = $m[1];
+            if (preg_match('/style\s*=\s*"([^"]*)"/i', $attrs, $sm)) {
+                $style = 'margin:0 0 2px;' . rtrim(trim($sm[1]), ';');
+                $attrs = preg_replace('/style\s*=\s*"[^"]*"/i', 'style="' . $style . '"', $attrs);
+            } else {
+                $attrs .= ' style="margin:0 0 2px"';
+            }
+            return '<p' . $attrs . '>';
+        }, $html) ?? $html;
     }
 }
