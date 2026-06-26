@@ -217,6 +217,12 @@ Route::prefix('gpt/v1')
         Route::get('documents/{id}/download', [DocumentController::class, 'download'])
             ->middleware('api.scope:documents:read');
 
+        // Content documents — read raw inline text + multi-format export/download
+        Route::get('documents/{id}/content', [DocumentController::class, 'content'])
+            ->middleware('api.scope:documents:read');
+        Route::get('documents/{id}/export', [DocumentController::class, 'export'])
+            ->middleware('api.scope:documents:read');
+
         // Version management (full history preserved — never overwritten)
         Route::get('documents/{id}/versions', [DocumentController::class, 'listVersions'])
             ->middleware('api.scope:documents:read');

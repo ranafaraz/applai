@@ -776,6 +776,62 @@ export function createCrmServer(): Server {
         },
       },
       {
+        name: 'crm_save_document',
+        description: 'Save long/formatted text (notes, reports, submission packages, guides) onto a CRM record. The CRM stores it as a managed, versioned document the user can view, edit, and download as PDF/DOCX/TXT/MD/HTML/CSV. Prefer this over uploading files — it needs only text (HTML or Markdown), never a binary or base64. Pass opportunity_id (or contact/email_draft/follow_up id) to attach it so it appears on the record\'s Documents tab.',
+        inputSchema: {
+          type: 'object',
+          required: ['name', 'content_body'],
+          properties: {
+            name:            { type: 'string', description: 'Document title (max 500)' },
+            content_body:    { type: 'string', description: 'The full document content as HTML or Markdown text (up to ~5 MB).' },
+            content_format:  { type: 'string', enum: ['markdown', 'html', 'plaintext'], description: 'Format of content_body. Default markdown.' },
+            document_type:   { type: 'string', enum: ['resume', 'cover_letter', 'proposal', 'portfolio', 'reference', 'contract', 'report', 'other'] },
+            description:     { type: 'string', description: 'Optional short description.' },
+            opportunity_id:  { type: 'number' },
+            contact_id:      { type: 'number' },
+            email_draft_id:  { type: 'number' },
+            follow_up_id:    { type: 'number' },
+            idempotency_key: { type: 'string' },
+          },
+        },
+      },
+      {
+        name: 'crm_update_document_content',
+        description: 'Save a new version of an existing content document (created via crm_save_document). The previous versions are preserved; the user can restore any of them. Send the full updated content_body.',
+        inputSchema: {
+          type: 'object',
+          required: ['id', 'content_body'],
+          properties: {
+            id:              { type: 'number', description: 'Document ID' },
+            content_body:    { type: 'string', description: 'The full updated content as HTML or Markdown text.' },
+            content_format:  { type: 'string', enum: ['markdown', 'html', 'plaintext'], description: 'Format of content_body. Default markdown.' },
+            version_notes:   { type: 'string', description: 'Optional note describing this revision.' },
+            idempotency_key: { type: 'string' },
+          },
+        },
+      },
+      {
+        name: 'crm_get_document_content',
+        description: 'Read back the stored text of a content document (returns content_format + content_body). Use this to retrieve what was previously saved with crm_save_document before editing it.',
+        inputSchema: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'number', description: 'Document ID' } },
+        },
+      },
+      {
+        name: 'crm_export_document',
+        description: 'Get a download/export URL for a content document in a given format (pdf, docx, txt, md, html, or csv). The CRM renders the stored text into that format on demand; csv requires tabular content (tables) or returns an error. The URL is the CRM API export endpoint (send the X-Api-Key header); the user can also one-click download any format from the record\'s Documents tab.',
+        inputSchema: {
+          type: 'object',
+          required: ['id', 'format'],
+          properties: {
+            id:     { type: 'number', description: 'Document ID' },
+            format: { type: 'string', enum: ['pdf', 'docx', 'txt', 'md', 'html', 'csv'], description: 'Target download format.' },
+          },
+        },
+      },
+      {
         name: 'crm_register_attachment',
         description: 'Register an externally-hosted file as a sendable email attachment (by URL). Returns an attachment id you can pass to crm_link_attachment_to_draft. attachment_ids on a draft are SENT with the email (unlike reference-only linked documents).',
         inputSchema: {
@@ -1136,6 +1192,31 @@ export function createCrmServer(): Server {
         case 'crm_upload_document':
           result = await crm.post('/documents', payload, idem);
           break;
+
+        case 'crm_save_document':
+          result = await crm.post('/documents', payload, idem);
+          break;
+
+        case 'crm_update_document_content': {
+          const { id, ...body } = payload as Record<string, unknown>;
+          result = await crm.post(`/documents/${a.id}/versions`, body, idem);
+          break;
+        }
+
+        case 'crm_get_document_content':
+          result = await crm.get(`/documents/${a.id}/content`);
+          break;
+
+        case 'crm_export_document': {
+          const fmt = String(a.format);
+          result = {
+            document_id: Number(a.id),
+            format:      fmt,
+            export_url:  `${crm.baseUrl()}/documents/${Number(a.id)}/export?format=${fmt}`,
+            message:     `Export URL for format "${fmt}". Fetch it with the X-Api-Key header, or download it one-click from the record's Documents tab in the CRM.`,
+          };
+          break;
+        }
 
         case 'crm_register_attachment':
           result = await crm.post('/attachments', payload, idem);

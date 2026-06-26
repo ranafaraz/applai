@@ -20,6 +20,7 @@ class ApiDocument extends Model
         'name',
         'document_type',
         'description',
+        'is_content_doc',
         'is_sensitive',
         'sensitive_warnings',
         'current_version_id',
@@ -28,6 +29,7 @@ class ApiDocument extends Model
     protected function casts(): array
     {
         return [
+            'is_content_doc'     => 'boolean',
             'is_sensitive'       => 'boolean',
             'sensitive_warnings' => 'array',
         ];

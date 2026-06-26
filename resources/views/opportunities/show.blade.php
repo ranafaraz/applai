@@ -177,22 +177,140 @@
             @endif
         </div>
 
-        <div x-show="tab === 'documents'" x-cloak class="p-6">
+        <div x-show="tab === 'documents'" x-cloak class="p-6" x-data="{ composer: false }">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-slate-700">Documents</h3>
-                <a href="{{ route('documents.create') }}?opportunity_id={{ $opportunity->id }}" class="text-sm text-indigo-600 hover:underline">+ Upload</a>
+                <div class="flex items-center gap-4">
+                    <button type="button" @click="composer = !composer" class="text-sm text-indigo-600 hover:underline">+ New document</button>
+                    <a href="{{ route('documents.create') }}?opportunity_id={{ $opportunity->id }}" class="text-sm text-slate-500 hover:underline">Upload file</a>
+                </div>
             </div>
+
+            {{-- New content-document composer (rich text → managed, versioned, exportable) --}}
+            <div x-show="composer" x-cloak class="mb-5 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4">
+                <form method="POST" action="{{ route('documents.content.store') }}" class="space-y-3">
+                    @csrf
+                    <input type="hidden" name="opportunity_id" value="{{ $opportunity->id }}">
+                    <input type="hidden" name="content_format" value="html">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Title</label>
+                            <input type="text" name="name" required maxlength="500" placeholder="e.g. Submission Package — Acme RFP"
+                                   class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Type</label>
+                            <select name="document_type" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                @foreach(\App\Models\ApiDocument::DOCUMENT_TYPES as $t)
+                                    <option value="{{ $t }}" {{ $t === 'report' ? 'selected' : '' }}>{{ ucfirst(str_replace('_',' ',$t)) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Content</label>
+                        <x-rich-editor name="content_body" placeholder="Write or paste the document content…" :required="true" />
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Save document</button>
+                        <button type="button" @click="composer = false" class="text-sm text-slate-500 hover:underline">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
             @php
                 $apiLinks    = $opportunity->apiDocumentLinks;
                 $legacyDocs  = $opportunity->documents;
+                $exportFormats = ['pdf'=>'PDF','docx'=>'Word (DOCX)','html'=>'HTML','md'=>'Markdown','txt'=>'Text','csv'=>'CSV (tables)'];
             @endphp
             @if($apiLinks->isEmpty() && $legacyDocs->isEmpty())
                 <p class="text-center text-slate-400 py-8">No documents attached.</p>
             @else
                 <div class="space-y-2">
                     @foreach($apiLinks as $link)
-                    @php $doc = $link->document; $ver = $doc?->currentVersion; @endphp
-                    @if($doc)
+                    @php $doc = $link->document; $ver = $doc?->currentVersion; $isContent = $ver && $ver->isContentDoc(); @endphp
+                    @if($doc && $isContent)
+                    {{-- CRM-native content document --}}
+                    <div x-data="{ open: false, edit: false, history: false, dl: false }" class="rounded-lg border border-slate-200">
+                        <div class="flex items-start justify-between p-3 gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium text-slate-800">{{ $doc->name }}
+                                    <span class="ml-1 align-middle text-[10px] uppercase tracking-wide bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">Content</span>
+                                </p>
+                                <p class="text-xs text-slate-500">
+                                    {{ ucfirst(str_replace('_', ' ', $doc->document_type ?? 'other')) }}
+                                    &bull; {{ strtoupper($ver->content_format ?? 'md') }}
+                                    &bull; v{{ $ver->version_number }}
+                                    &bull; {{ number_format(max($ver->size_bytes,1) / 1024, 1) }} KB
+                                </p>
+                                @if($p = $ver->contentPreview(160))
+                                    <p class="text-xs text-slate-400 mt-1 line-clamp-2">{{ $p }}</p>
+                                @endif
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <button type="button" @click="open=!open" class="text-xs text-indigo-600 hover:underline" x-text="open ? 'Hide' : 'Preview'"></button>
+                                <div class="relative" @click.away="dl=false">
+                                    <button type="button" @click="dl=!dl" class="text-xs text-slate-600 hover:text-indigo-600">Download ▾</button>
+                                    <div x-show="dl" x-cloak class="absolute right-0 z-10 mt-1 w-44 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
+                                        @foreach($exportFormats as $fmt => $label)
+                                            <a href="{{ route('documents.api.export', ['id'=>$doc->id, 'format'=>$fmt]) }}" class="block px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">{{ $label }}</a>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                <button type="button" @click="edit=!edit" class="text-xs text-slate-600 hover:text-indigo-600">Edit</button>
+                                <button type="button" @click="history=!history" class="text-xs text-slate-600 hover:text-indigo-600">History</button>
+                                <form method="POST" action="{{ route('documents.content.destroy', $doc->id) }}" onsubmit="return confirm('Delete this document?')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="text-xs text-red-500 hover:underline">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+
+                        {{-- Preview --}}
+                        <div x-show="open" x-cloak class="px-4 pb-4 pt-1 border-t border-slate-100">
+                            <x-rich-content :value="$ver->content_body" class="prose prose-sm max-w-none text-sm text-slate-700" />
+                        </div>
+
+                        {{-- Inline edit → new version --}}
+                        <div x-show="edit" x-cloak class="px-4 pb-4 pt-3 border-t border-slate-100">
+                            <form method="POST" action="{{ route('documents.content.update', $doc->id) }}" class="space-y-3">
+                                @csrf
+                                <input type="hidden" name="content_format" value="{{ $ver->content_format ?? 'html' }}">
+                                <input type="text" name="name" value="{{ $doc->name }}" maxlength="500"
+                                       class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <x-rich-editor name="content_body" :value="$ver->content_format === 'html' ? $ver->content_body : e($ver->content_body)" />
+                                <div class="flex items-center gap-3">
+                                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">Save new version</button>
+                                    <button type="button" @click="edit=false" class="text-sm text-slate-500 hover:underline">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {{-- Version history --}}
+                        <div x-show="history" x-cloak class="px-4 pb-4 pt-3 border-t border-slate-100">
+                            <p class="text-xs font-semibold text-slate-600 mb-2">Version history</p>
+                            <div class="space-y-1">
+                                @foreach($doc->versions->sortByDesc('version_number') as $hv)
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-slate-600">
+                                        v{{ $hv->version_number }}
+                                        &bull; {{ number_format(max($hv->size_bytes,1)/1024,1) }} KB
+                                        &bull; {{ $hv->created_at?->format('M j, Y g:i A') }}
+                                        @if($hv->id === $doc->current_version_id) <span class="text-green-600 font-medium">(current)</span> @endif
+                                    </span>
+                                    @if($hv->id !== $doc->current_version_id)
+                                    <form method="POST" action="{{ route('documents.content.restore', ['id'=>$doc->id,'vid'=>$hv->id]) }}">
+                                        @csrf
+                                        <button type="submit" class="text-indigo-600 hover:underline">Restore</button>
+                                    </form>
+                                    @endif
+                                </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                    @elseif($doc)
+                    {{-- File / URL document (existing behaviour) --}}
                     <div class="flex items-center justify-between p-3 rounded-lg border border-slate-200">
                         <div>
                             <p class="text-sm font-medium text-slate-800">{{ $doc->name }}</p>

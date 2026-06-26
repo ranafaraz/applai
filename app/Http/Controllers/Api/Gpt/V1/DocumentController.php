@@ -12,6 +12,7 @@ use App\Models\EmailMessage;
 use App\Models\FollowUp;
 use App\Models\Opportunity;
 use App\Models\User;
+use App\Support\RichText;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,6 +63,11 @@ class DocumentController extends GptController
     {
         if ($dropped = $this->rejectIfBodyDropped($request)) {
             return $dropped;
+        }
+
+        // Text-in path (primary for the agent): no file, no base64 — just content.
+        if ($request->filled('content_body')) {
+            return $this->createFromContent($request);
         }
 
         if ($request->hasFile('file')) {
@@ -177,6 +183,26 @@ class DocumentController extends GptController
 
         $nextNum = (ApiDocumentVersion::where('api_document_id', $doc->id)->max('version_number') ?? 0) + 1;
 
+        if ($request->filled('content_body')) {
+            $data = $request->validate([
+                'content_body'   => 'required|string|max:5242880',
+                'content_format' => ['nullable', Rule::in(ApiDocumentVersion::CONTENT_FORMATS)],
+                'version_notes'  => 'nullable|string|max:2000',
+            ]);
+
+            $version = $this->makeContentVersion($doc, $nextNum, $data, $client->id);
+            $doc->update(['current_version_id' => $version->id, 'is_content_doc' => true]);
+
+            $this->audit($request, 'add_document_version', 'api_document', $doc->id, 'low',
+                "version={$nextNum},source=inline_content", "version_id={$version->id}");
+
+            return response()->json([
+                'document_id' => $doc->id,
+                'data'        => $this->formatVersion($version),
+                'message'     => "Version {$nextNum} created. Previous versions remain accessible.",
+            ], 201);
+        }
+
         if ($request->hasFile('file')) {
             $request->validate([
                 'file'          => 'required|file|max:' . self::MAX_SIZE_KB . '|mimes:' . self::ALLOWED_EXTENSIONS,
@@ -242,6 +268,60 @@ class DocumentController extends GptController
             'data'        => $this->formatVersion($version),
             'message'     => "Version {$nextNum} created. Previous versions remain accessible.",
         ], 201);
+    }
+
+    // =========================================================================
+    // Content documents  (inline text — read + export)
+    // =========================================================================
+
+    /** GET /documents/{id}/content — return the raw stored content for content docs. */
+    public function content(Request $request, int $id): JsonResponse
+    {
+        $doc = ApiDocument::where('user_id', $this->apiUser($request)->id)
+            ->with('currentVersion')
+            ->findOrFail($id);
+
+        $ver = $doc->currentVersion;
+
+        if (! $ver || ! $ver->isContentDoc()) {
+            return response()->json(['error' => 'This document has no inline content. It is a file or URL document.'], 422);
+        }
+
+        return response()->json([
+            'document_id'    => $doc->id,
+            'name'           => $doc->name,
+            'version_id'     => $ver->id,
+            'version_number' => $ver->version_number,
+            'content_format' => $ver->content_format,
+            'content_body'   => $ver->content_body,
+        ]);
+    }
+
+    /** GET /documents/{id}/export?format=pdf|docx|txt|md|html|csv — convert + stream. */
+    public function export(Request $request, int $id): mixed
+    {
+        $doc = ApiDocument::where('user_id', $this->apiUser($request)->id)
+            ->with('currentVersion')
+            ->findOrFail($id);
+
+        $format = strtolower((string) $request->query('format', 'pdf'));
+        $ver    = $doc->currentVersion;
+
+        abort_unless($ver, 404, 'No version available for this document.');
+
+        try {
+            $result = app(\App\Services\DocumentExportService::class)->export($ver, $format, $doc->name);
+        } catch (\App\Exceptions\DocumentExportException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->status);
+        }
+
+        $this->audit($request, 'export_document', 'api_document', $doc->id, 'low',
+            "format={$format}", "v={$ver->id}");
+
+        return response($result['body'], 200, [
+            'Content-Type'        => $result['mime'],
+            'Content-Disposition' => 'attachment; filename="' . $result['filename'] . '"',
+        ]);
     }
 
     // =========================================================================
@@ -402,6 +482,92 @@ class DocumentController extends GptController
     // =========================================================================
     // Private — document creation
     // =========================================================================
+
+    /**
+     * Text-in path (primary for the agent): the agent posts inline HTML/Markdown/
+     * plaintext; the CRM stores it as a versioned content document the user can
+     * read, edit, and download as PDF/DOCX/TXT/MD/HTML/CSV. No file, no base64.
+     */
+    private function createFromContent(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'name'           => 'required|string|max:500',
+            'content_body'   => 'required|string|max:5242880', // 5 MB of text
+            'content_format' => ['nullable', Rule::in(ApiDocumentVersion::CONTENT_FORMATS)],
+            'document_type'  => ['nullable', Rule::in(ApiDocument::DOCUMENT_TYPES)],
+            'description'    => 'nullable|string|max:2000',
+            'version_notes'  => 'nullable|string|max:2000',
+            'opportunity_id' => 'nullable|integer',
+            'contact_id'     => 'nullable|integer',
+            'email_draft_id' => 'nullable|integer',
+            'follow_up_id'   => 'nullable|integer',
+        ]);
+
+        $user   = $this->apiUser($request);
+        $client = $this->apiClient($request);
+        $dtype  = $data['document_type'] ?? 'report';
+
+        $entityLinks = $this->collectEntityLinks($request, $user);
+        if ($entityLinks instanceof JsonResponse) return $entityLinks;
+
+        $doc = ApiDocument::create([
+            'tenant_id'      => $user->tenant_id,
+            'user_id'        => $user->id,
+            'name'           => $data['name'],
+            'document_type'  => $dtype,
+            'description'    => $data['description'] ?? null,
+            'is_content_doc' => true,
+            'is_sensitive'   => false,
+        ]);
+
+        try {
+            $version = $this->makeContentVersion($doc, 1, $data, $client->id);
+            $doc->update(['current_version_id' => $version->id]);
+        } catch (\Throwable $e) {
+            $doc->forceDelete();
+            throw $e;
+        }
+
+        $this->saveEntityLinks($doc, $entityLinks, $client);
+
+        $this->audit($request, 'create_document', 'api_document', $doc->id, 'low',
+            "name={$doc->name},source=inline_content", "id={$doc->id},v={$version->id}");
+
+        $doc->load(['currentVersion', 'links']);
+        $doc->loadCount('versions');
+
+        return $this->documentCreatedResponse($doc, []);
+    }
+
+    /**
+     * Build (but do not attach as current) an inline-content version. Sanitizes
+     * HTML on the way in; stores the raw text, its format, byte size and sha256.
+     */
+    private function makeContentVersion(ApiDocument $doc, int $versionNumber, array $data, int $clientId): ApiDocumentVersion
+    {
+        $format = $data['content_format'] ?? 'markdown';
+        $body   = (string) $data['content_body'];
+
+        if ($format === 'html') {
+            $body = (string) RichText::sanitizeForStorage($body);
+        }
+
+        $mime = ApiDocumentVersion::CONTENT_MIME_TYPES[$format] ?? 'text/plain';
+
+        return ApiDocumentVersion::create([
+            'api_document_id'           => $doc->id,
+            'version_number'            => $versionNumber,
+            'original_filename'         => $this->sanitizeFilename($doc->name) . '.' . ($format === 'html' ? 'html' : ($format === 'markdown' ? 'md' : 'txt')),
+            'mime_type'                 => $mime,
+            'size_bytes'                => strlen($body),
+            'checksum'                  => hash('sha256', $body),
+            'content_format'            => $format,
+            'content_body'              => $body,
+            'upload_source'             => 'inline_content',
+            'version_notes'             => $data['version_notes'] ?? null,
+            'uploaded_by_api_client_id' => $clientId,
+        ]);
+    }
 
     /**
      * Server-side fetch: the agent passes a URL; the CRM downloads and stores
@@ -877,6 +1043,7 @@ class DocumentController extends GptController
             'name'               => $doc->name,
             'document_type'      => $doc->document_type,
             'description'        => $doc->description,
+            'is_content_doc'     => (bool) $doc->is_content_doc,
             'is_sensitive'       => (bool) $doc->is_sensitive,
             'sensitive_warnings' => $doc->sensitive_warnings ?? [],
             'version_count'      => $doc->versions_count ?? $doc->versions()->count(),
@@ -891,6 +1058,8 @@ class DocumentController extends GptController
 
     private function formatVersion(ApiDocumentVersion $v): array
     {
+        $isContent = $v->isContentDoc();
+
         return [
             'version_id'        => $v->id,
             'version_number'    => $v->version_number,
@@ -899,11 +1068,22 @@ class DocumentController extends GptController
             'size_bytes'        => $v->size_bytes,
             'checksum'          => $v->checksum,
             'upload_source'     => $v->upload_source,
+            'is_content_doc'    => $isContent,
+            'content_format'    => $v->content_format,
+            'preview'           => $isContent ? $v->contentPreview() : null,
             'has_local_file'    => !empty($v->storage_path),
             'public_url'        => $v->public_url,
-            'download_url'      => $v->storage_path
-                ? url("/api/gpt/v1/documents/{$v->api_document_id}/download")
-                : $v->public_url,
+            'download_url'      => $isContent
+                ? url("/api/gpt/v1/documents/{$v->api_document_id}/export?format=pdf")
+                : ($v->storage_path
+                    ? url("/api/gpt/v1/documents/{$v->api_document_id}/download")
+                    : $v->public_url),
+            'export_url'        => $isContent
+                ? url("/api/gpt/v1/documents/{$v->api_document_id}/export")
+                : null,
+            'content_url'       => $isContent
+                ? url("/api/gpt/v1/documents/{$v->api_document_id}/content")
+                : null,
             'version_notes'     => $v->version_notes,
             'created_at'        => $v->created_at?->toISOString(),
         ];

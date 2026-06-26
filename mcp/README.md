@@ -219,10 +219,14 @@ present `Authorization: Bearer <MCP_BEARER_TOKEN>`.
 | `crm_recent_replies` | Get recent inbound replies (with sentiment) |
 | `crm_list_followups_due` | Follow-ups due today or overdue |
 | `crm_list_signatures` | List available email signatures |
+| `crm_save_document` | **Primary text path** — save long/formatted text (HTML or Markdown) onto a record as a managed, versioned content document the user can view, edit, and download as PDF/DOCX/TXT/MD/HTML/CSV. No file, no base64. |
+| `crm_update_document_content` | Save a new version of a content document (full updated text); previous versions preserved/restorable |
+| `crm_get_document_content` | Read back a content document's stored `content_format` + `content_body` |
+| `crm_export_document` | Get a download/export URL for a content document in a format (pdf, docx, txt, md, html, csv) |
 | `crm_list_documents` | List documents (optionally scoped to contact or opportunity) |
 | `crm_get_document` | Get document by ID with version history |
 | `crm_register_document` | Register an externally-hosted document by URL |
-| `crm_upload_document` | Upload a document from base64 bytes (≤20 MB), hosted by the CRM |
+| `crm_upload_document` | Upload a file (`source_url` server-fetch, or `file_base64` ≤20 MB) for binary documents |
 | `crm_register_attachment` | Register a sendable email attachment by URL |
 | `crm_link_attachment_to_draft` | Attach registered attachments to a draft (sent with the email) |
 | `crm_register_proposal` | Register a generated proposal |

@@ -160,6 +160,18 @@ Route::middleware(['auth', 'tenant_active'])->group(function () {
     Route::get('documents/api/{id}/view', [DocumentController::class, 'viewApiDoc'])
         ->name('documents.api.view');
 
+    // CRM-native content documents (inline rich text — created/edited in-app)
+    Route::get('documents/api/{id}/export/{format}', [DocumentController::class, 'exportApiDoc'])
+        ->whereNumber('id')->name('documents.api.export');
+    Route::post('content-documents', [DocumentController::class, 'storeContentDoc'])
+        ->name('documents.content.store');
+    Route::post('content-documents/{id}', [DocumentController::class, 'updateContentDoc'])
+        ->whereNumber('id')->name('documents.content.update');
+    Route::post('content-documents/{id}/restore/{vid}', [DocumentController::class, 'restoreContentVersion'])
+        ->whereNumber(['id', 'vid'])->name('documents.content.restore');
+    Route::delete('content-documents/{id}', [DocumentController::class, 'destroyApiDoc'])
+        ->whereNumber('id')->name('documents.content.destroy');
+
     // ---------------------------------------------------------------------------
     // Email Templates
     // ---------------------------------------------------------------------------

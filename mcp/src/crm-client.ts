@@ -119,6 +119,9 @@ function enqueueWrite(url: string, options: RequestInit, opts: WriteOpts): Promi
 }
 
 export const crm = {
+  // Base API URL (for building user-facing export/download links).
+  baseUrl: () => BASE_URL,
+
   // Reads — not serialized, still retry on 429.
   get: (path: string) => rawFetch(`${BASE_URL}${path}`, {}),
 

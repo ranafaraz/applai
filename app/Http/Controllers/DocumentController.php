@@ -2,13 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\DocumentExportException;
 use App\Http\Requests\StoreDocumentRequest;
 use App\Models\ApiDocument;
+use App\Models\ApiDocumentLink;
+use App\Models\ApiDocumentVersion;
 use App\Models\Document;
 use App\Models\Opportunity;
+use App\Services\DocumentExportService;
+use App\Support\RichText;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -128,6 +135,138 @@ class DocumentController extends Controller
 
         return Storage::disk('local')->response($ver->storage_path, $ver->original_filename, [
             'Content-Type' => $ver->mime_type,
+        ]);
+    }
+
+    // =========================================================================
+    // CRM-native content documents (inline rich text — managed in-app)
+    // =========================================================================
+
+    /** Convert + stream a content document in the requested format. */
+    public function exportApiDoc(Request $request, int $id, string $format): Response
+    {
+        $doc = $this->tenantQuery(ApiDocument::class)->with('currentVersion')->findOrFail($id);
+        $ver = $doc->currentVersion;
+
+        abort_unless($ver, 404, 'No version available for this document.');
+
+        try {
+            $result = app(DocumentExportService::class)->export($ver, $format, $doc->name);
+        } catch (DocumentExportException $e) {
+            abort($e->status, $e->getMessage());
+        }
+
+        return response($result['body'], 200, [
+            'Content-Type'        => $result['mime'],
+            'Content-Disposition' => 'attachment; filename="' . $result['filename'] . '"',
+        ]);
+    }
+
+    /** Create a content document directly from the CRM UI. */
+    public function storeContentDoc(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name'           => 'required|string|max:500',
+            'content_body'   => 'required|string|max:5242880',
+            'content_format' => ['nullable', Rule::in(ApiDocumentVersion::CONTENT_FORMATS)],
+            'document_type'  => ['nullable', Rule::in(ApiDocument::DOCUMENT_TYPES)],
+            'description'    => 'nullable|string|max:2000',
+            'opportunity_id' => 'nullable|integer',
+        ]);
+
+        $doc = ApiDocument::create($this->tenantData([
+            'name'           => $data['name'],
+            'document_type'  => $data['document_type'] ?? 'report',
+            'description'    => $data['description'] ?? null,
+            'is_content_doc' => true,
+            'is_sensitive'   => false,
+        ]));
+
+        $version = $this->makeContentVersion($doc, 1, $data);
+        $doc->update(['current_version_id' => $version->id]);
+
+        if (! empty($data['opportunity_id'])) {
+            $opp = $this->tenantQuery(Opportunity::class)->find($data['opportunity_id']);
+            if ($opp) {
+                ApiDocumentLink::firstOrCreate([
+                    'api_document_id' => $doc->id,
+                    'entity_type'     => 'opportunity',
+                    'entity_id'       => $opp->id,
+                ]);
+            }
+        }
+
+        return back()->with('success', 'Document created.');
+    }
+
+    /** Save an edit as a new version. */
+    public function updateContentDoc(Request $request, int $id): RedirectResponse
+    {
+        $data = $request->validate([
+            'name'           => 'nullable|string|max:500',
+            'content_body'   => 'required|string|max:5242880',
+            'content_format' => ['nullable', Rule::in(ApiDocumentVersion::CONTENT_FORMATS)],
+            'version_notes'  => 'nullable|string|max:2000',
+        ]);
+
+        $doc = $this->tenantQuery(ApiDocument::class)->findOrFail($id);
+
+        $nextNum = (ApiDocumentVersion::where('api_document_id', $doc->id)->max('version_number') ?? 0) + 1;
+        $version = $this->makeContentVersion($doc, $nextNum, $data);
+
+        $patch = ['current_version_id' => $version->id, 'is_content_doc' => true];
+        if (! empty($data['name'])) {
+            $patch['name'] = $data['name'];
+        }
+        $doc->update($patch);
+
+        return back()->with('success', "Saved as version {$nextNum}.");
+    }
+
+    /** Make an older version current again (non-destructive restore). */
+    public function restoreContentVersion(Request $request, int $id, int $vid): RedirectResponse
+    {
+        $doc     = $this->tenantQuery(ApiDocument::class)->findOrFail($id);
+        $version = ApiDocumentVersion::where('api_document_id', $doc->id)->where('id', $vid)->firstOrFail();
+
+        $doc->update(['current_version_id' => $version->id]);
+
+        return back()->with('success', "Restored version {$version->version_number}.");
+    }
+
+    /** Soft-delete a CRM-native (API) document from the UI. */
+    public function destroyApiDoc(Request $request, int $id): RedirectResponse
+    {
+        $doc = $this->tenantQuery(ApiDocument::class)->findOrFail($id);
+        $doc->delete();
+
+        return back()->with('success', 'Document deleted.');
+    }
+
+    /** Build an inline-content version; sanitizes HTML, stores text + checksum. */
+    private function makeContentVersion(ApiDocument $doc, int $versionNumber, array $data): ApiDocumentVersion
+    {
+        $format = $data['content_format'] ?? 'html';
+        $body   = (string) $data['content_body'];
+
+        if ($format === 'html') {
+            $body = (string) RichText::sanitizeForStorage($body);
+        }
+
+        $ext  = $format === 'html' ? 'html' : ($format === 'markdown' ? 'md' : 'txt');
+        $mime = ApiDocumentVersion::CONTENT_MIME_TYPES[$format] ?? 'text/plain';
+
+        return ApiDocumentVersion::create([
+            'api_document_id'   => $doc->id,
+            'version_number'    => $versionNumber,
+            'original_filename' => preg_replace('/[^a-zA-Z0-9._\- ]/', '_', $doc->name) . '.' . $ext,
+            'mime_type'         => $mime,
+            'size_bytes'        => strlen($body),
+            'checksum'          => hash('sha256', $body),
+            'content_format'    => $format,
+            'content_body'      => $body,
+            'upload_source'     => 'inline_content',
+            'version_notes'     => $data['version_notes'] ?? null,
         ]);
     }
 

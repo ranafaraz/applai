@@ -21,6 +21,8 @@ class ApiDocumentVersion extends Model
         'checksum',
         'storage_path',
         'public_url',
+        'content_format',
+        'content_body',
         'upload_source',
         'version_notes',
         'uploaded_by_api_client_id',
@@ -34,7 +36,16 @@ class ApiDocumentVersion extends Model
         ];
     }
 
-    const UPLOAD_SOURCES = ['multipart', 'url', 'agent'];
+    const UPLOAD_SOURCES = ['multipart', 'url', 'agent', 'remote_fetch', 'inline_content'];
+
+    const CONTENT_FORMATS = ['html', 'markdown', 'plaintext'];
+
+    /** content_format => the mime type stored on the version. */
+    const CONTENT_MIME_TYPES = [
+        'html'      => 'text/html',
+        'markdown'  => 'text/markdown',
+        'plaintext' => 'text/plain',
+    ];
 
     const ALLOWED_MIME_TYPES = [
         'application/pdf',
@@ -66,6 +77,25 @@ class ApiDocumentVersion extends Model
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** True when this version holds inline authored text (not a file or URL). */
+    public function isContentDoc(): bool
+    {
+        return $this->upload_source === 'inline_content' || $this->content_body !== null;
+    }
+
+    /** First ~$len characters of the content as plain text (for list previews). */
+    public function contentPreview(int $len = 200): ?string
+    {
+        if (! $this->isContentDoc()) {
+            return null;
+        }
+
+        $text = trim(html_entity_decode(strip_tags((string) $this->content_body), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $text = preg_replace('/\s+/u', ' ', $text) ?? '';
+
+        return mb_strlen($text) > $len ? mb_substr($text, 0, $len) . '…' : $text;
+    }
 
     public static function detectSensitiveWarnings(string $filename, string $documentType): array
     {
