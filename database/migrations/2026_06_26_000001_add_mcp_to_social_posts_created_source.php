@@ -13,12 +13,22 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // SQLite has no ENUM enforcement — the column already accepts any string,
+        // so no DDL is needed. Skip to stay compatible with the test suite.
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE social_posts MODIFY COLUMN created_source "
             . "ENUM('manual','chatgpt','template','import','mcp') NOT NULL DEFAULT 'manual'");
     }
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         // Collapse any 'mcp' rows so the narrower enum reverts cleanly.
         DB::statement("UPDATE social_posts SET created_source='chatgpt' WHERE created_source='mcp'");
         DB::statement("ALTER TABLE social_posts MODIFY COLUMN created_source "
