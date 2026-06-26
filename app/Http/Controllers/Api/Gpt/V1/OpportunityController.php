@@ -22,7 +22,7 @@ class OpportunityController extends GptController
             'deadline_before' => 'nullable|date',
             'deadline_after'  => 'nullable|date',
             'has_contact'     => 'nullable|boolean',
-            'limit'           => 'nullable|integer|min:1|max:100',
+            'limit'           => 'nullable|integer|min:1',
         ]);
 
         $user  = $this->apiUser($request);

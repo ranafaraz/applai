@@ -46,6 +46,7 @@ class EmailMessage extends Model
         'failed_at',
         'failure_reason',
         'is_follow_up',
+        'cancel_if_replied',
         'follow_up_number',
         'parent_message_id',
         'opened_at',
@@ -63,7 +64,8 @@ class EmailMessage extends Model
         return [
             'cc'               => 'array',
             'bcc'              => 'array',
-            'is_follow_up'     => 'boolean',
+            'is_follow_up'       => 'boolean',
+            'cancel_if_replied'  => 'boolean',
             'follow_up_number' => 'integer',
             'scheduled_at'     => 'datetime',
             'sent_at'          => 'datetime',

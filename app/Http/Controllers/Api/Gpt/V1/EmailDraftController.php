@@ -150,12 +150,16 @@ class EmailDraftController extends GptController
             ->first();
 
         if ($recentDuplicate) {
-            $this->audit($request, 'create_draft_duplicate', 'email_message', $recentDuplicate->id, 'medium',
-                "contact_id={$contact->id}", 'blocked: duplicate within 60s', 'blocked');
+            $this->audit($request, 'create_draft_duplicate', 'email_message', $recentDuplicate->id, 'low',
+                "contact_id={$contact->id}", 'returned existing draft (duplicate within 60s)', 'success');
+            $recentDuplicate->load(['emailSignature', 'apiAttachments', 'apiDocumentLinks.document.currentVersion']);
             return response()->json([
-                'error'            => 'An identical draft for this recipient was created less than 60 seconds ago. Use the existing draft or wait before creating another.',
-                'existing_draft_id'=> $recentDuplicate->id,
-            ], 409);
+                'data'                  => $this->format($recentDuplicate, ! $isMcp),
+                'confirmation_required' => ! $isMcp,
+                'send_status'           => 'draft',
+                'duplicate'             => true,
+                'message'               => 'Returned existing draft — identical draft created within last 60 seconds; no duplicate was created.',
+            ]);
         }
 
         // Resolve sender account
@@ -518,7 +522,8 @@ class EmailDraftController extends GptController
     public function schedule(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'send_at' => 'required|date|after:now',
+            'send_at'           => 'required|date|after:now',
+            'cancel_if_replied' => 'nullable|boolean',
         ]);
 
         $user  = $this->apiUser($request);
@@ -538,18 +543,20 @@ class EmailDraftController extends GptController
         $sendAt = Carbon::parse($data['send_at'])->utc();
 
         $draft->update([
-            'status'       => 'scheduled',
-            'scheduled_at' => $sendAt,
+            'status'             => 'scheduled',
+            'scheduled_at'       => $sendAt,
+            'cancel_if_replied'  => $data['cancel_if_replied'] ?? true,
         ]);
 
         $this->audit($request, 'schedule_draft', 'email_message', $draft->id, 'medium',
             "send_at={$sendAt->toISOString()}", "draft_id={$draft->id} scheduled");
 
         return response()->json([
-            'message'      => 'Email scheduled. It will be dispatched automatically at the scheduled time.',
-            'draft_id'     => $draft->id,
-            'scheduled_at' => $draft->scheduled_at?->toISOString(),
-            'status'       => 'scheduled',
+            'message'            => 'Email scheduled. It will be dispatched automatically at the scheduled time.',
+            'draft_id'           => $draft->id,
+            'scheduled_at'       => $draft->scheduled_at?->toISOString(),
+            'status'             => 'scheduled',
+            'cancel_if_replied'  => $draft->cancel_if_replied,
         ]);
     }
 
@@ -611,6 +618,7 @@ class EmailDraftController extends GptController
             'linked_documents_notice'      => 'linked_documents are reference files attached via uploadDocument — they are NOT sent with this email. Only items in attachment_ids (added via uploadAttachment + attachment_ids) are sent.',
             'confirmation_required'        => $confirmationRequired,
             'is_follow_up'                 => $d->is_follow_up,
+            'cancel_if_replied'            => $d->cancel_if_replied,
             'created_at'                   => $d->created_at?->toISOString(),
             'preview'                      => substr(strip_tags($d->body ?? ''), 0, 200),
         ];

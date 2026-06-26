@@ -68,7 +68,7 @@ export function createCrmServer(): Server {
             priority:        { type: 'string', description: 'low, medium, high' },
             deadline_before: { type: 'string', description: 'ISO date YYYY-MM-DD' },
             deadline_after:  { type: 'string', description: 'ISO date YYYY-MM-DD' },
-            limit:           { type: 'number' },
+            limit:           { type: 'number', description: 'Max results (1-100, default 20) — values over 100 are silently clamped' },
           },
         },
       },
@@ -114,7 +114,7 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_create_email_draft',
-        description: 'Create an email draft. MCP drafts are auto-approved and bypass the confirmation gate — nothing is sent until crm_send_draft is called. SIGNATURE: the saved default signature is auto-appended unless you pass suppress_signature=true or specify a signature_id. Do NOT include the signature text in the body — it doubles up. Use crm_list_signatures to see available signatures.',
+        description: 'Create an email draft. MCP drafts are auto-approved and bypass the confirmation gate — nothing is sent until crm_send_draft is called. IDEMPOTENT: if an identical draft (same subject + recipient + opportunity) was created within the last 60 seconds, the existing draft is returned (duplicate=true in response, HTTP 200) — use the returned draft_id without retrying. SIGNATURE: the saved default signature is auto-appended unless you pass suppress_signature=true or specify a signature_id. Do NOT include the signature text in the body — it doubles up. Use crm_list_signatures to see available signatures.',
         inputSchema: {
           type: 'object',
           required: ['contact_id', 'subject', 'body'],
@@ -658,14 +658,15 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_schedule_draft',
-        description: 'Schedule an email draft to be sent at a future time. Sets the draft status to "scheduled"; a worker sends it when the time arrives, honoring the same guardrails as crm_send_draft. Use crm_unschedule_draft to cancel.',
+        description: 'Schedule an email draft to be sent at a future time. Sets the draft status to "scheduled"; a worker sends it when the time arrives, honoring the same guardrails as crm_send_draft. REPLY-AWARE: by default (cancel_if_replied=true) the scheduled send is automatically cancelled if a reply from the same contact/opportunity is detected via IMAP sync before the send time — preventing embarrassing "just following up" messages after someone already replied. Pass cancel_if_replied=false to keep the scheduled send even after a reply. Use crm_unschedule_draft to cancel manually.',
         inputSchema: {
           type: 'object',
           required: ['id', 'scheduled_at'],
           properties: {
-            id:              { type: 'number', description: 'Email draft ID' },
-            scheduled_at:    { type: 'string', description: 'ISO-8601 future datetime' },
-            idempotency_key: { type: 'string' },
+            id:                  { type: 'number', description: 'Email draft ID' },
+            scheduled_at:        { type: 'string', description: 'ISO-8601 future datetime' },
+            cancel_if_replied:   { type: 'boolean', description: 'Auto-cancel this scheduled send if a reply from this contact/opportunity arrives before the send time (default true)' },
+            idempotency_key:     { type: 'string' },
           },
         },
       },
@@ -1095,9 +1096,12 @@ export function createCrmServer(): Server {
           break;
         }
 
-        case 'crm_schedule_draft':
-          result = await crm.post(`/email-drafts/${a.id}/schedule`, { send_at: a.scheduled_at }, idem);
+        case 'crm_schedule_draft': {
+          const schedBody: Record<string, unknown> = { send_at: a.scheduled_at };
+          if (a.cancel_if_replied !== undefined) schedBody.cancel_if_replied = a.cancel_if_replied;
+          result = await crm.post(`/email-drafts/${a.id}/schedule`, schedBody, idem);
           break;
+        }
 
         case 'crm_unschedule_draft':
           result = await crm.post(`/email-drafts/${a.id}/unschedule`, {}, idem);

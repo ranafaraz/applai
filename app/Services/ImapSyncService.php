@@ -210,10 +210,11 @@ class ImapSyncService
                 $draftQuery->where('contact_id', $reply->matched_contact_id);
             }
 
-            $draftQuery->update([
-                'status'       => 'draft',
-                'scheduled_at' => null,
-            ]);
+            $draftQuery->where('cancel_if_replied', true)
+                ->update([
+                    'status'       => 'draft',
+                    'scheduled_at' => null,
+                ]);
         }
     }
 
