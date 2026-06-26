@@ -95,6 +95,14 @@ class EmailDraftController extends GptController
             ], 422);
         }
 
+        // Block placeholder / RFC-reserved addresses at draft creation time.
+        if ($this->isPlaceholderEmail($contact->email)) {
+            return response()->json([
+                'error'   => 'Contact email looks like a placeholder or test address. Update the contact with a real email address before creating a draft.',
+                'contact' => ['id' => $contact->id, 'email' => $contact->email],
+            ], 422);
+        }
+
         // Block suppressed contacts
         $suppressed = in_array($contact->status, ['suppressed', 'bounced'], true);
         if (! $suppressed && $contact->email) {
@@ -334,12 +342,62 @@ class EmailDraftController extends GptController
     }
 
     /**
+     * List outbound emails that permanently failed to send for the authenticated user.
+     * Scope: drafts:read.
+     */
+    public function failures(Request $request): JsonResponse
+    {
+        $request->validate([
+            'contact_id'     => 'nullable|integer',
+            'opportunity_id' => 'nullable|integer',
+            'limit'          => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $user  = $this->apiUser($request);
+        $limit = min((int) $request->input('limit', 50), 100);
+
+        $query = EmailMessage::where('user_id', $user->id)
+            ->where('direction', 'outbound')
+            ->where('status', 'failed')
+            ->with(['contact', 'opportunity']);
+
+        if ($contactId = $request->input('contact_id')) {
+            $query->where('contact_id', $contactId);
+        }
+        if ($opportunityId = $request->input('opportunity_id')) {
+            $query->where('opportunity_id', $opportunityId);
+        }
+
+        $messages = $query->orderByDesc('failed_at')->limit($limit)->get();
+
+        return $this->listResponse(
+            $messages->map(fn ($m) => [
+                'id'             => $m->id,
+                'subject'        => $m->subject,
+                'to_email'       => $m->to_email,
+                'failed_at'      => $m->failed_at?->toISOString(),
+                'failure_reason' => $m->failure_reason,
+                'contact_id'     => $m->contact_id,
+                'opportunity_id' => $m->opportunity_id,
+                'contact'        => $m->contact?->only(['id', 'first_name', 'last_name', 'email']),
+                'opportunity'    => $m->opportunity?->only(['id', 'title', 'status']),
+            ])->values(),
+            $limit
+        );
+    }
+
+    /**
      * Send a draft. For MCP clients the job is dispatched synchronously so the
      * response reflects the real send outcome. Non-MCP clients use the async
      * scheduled-send pipeline (crm:send-scheduled → SendEmailJob). Scope: email:send.
+     *
+     * dry_run=true runs all pre-flight checks but does not dispatch the job.
      */
     public function send(Request $request, int $id): JsonResponse
     {
+        $data  = $request->validate(['dry_run' => 'nullable|boolean']);
+        $dryRun = (bool) ($data['dry_run'] ?? false);
+
         $user  = $this->apiUser($request);
         $isMcp = $this->apiClient($request)->source_type === 'mcp';
 
@@ -358,11 +416,32 @@ class EmailDraftController extends GptController
             return response()->json(['error' => 'Draft has no recipient email address.'], 422);
         }
 
+        // Block placeholder / RFC-reserved recipient addresses.
+        if ($this->isPlaceholderEmail($draft->to_email)) {
+            $this->audit($request, 'send_draft_blocked', 'email_message', $draft->id, 'high',
+                "to={$draft->to_email}", 'blocked: placeholder email', 'blocked');
+            return response()->json([
+                'error'    => 'Recipient address looks like a placeholder or test address and cannot be sent to.',
+                'to_email' => $draft->to_email,
+            ], 422);
+        }
+
         // Block suppressed recipients at send time as a final guard.
         if (SuppressionList::isSuppressed($user->id, $draft->to_email)) {
             $this->audit($request, 'send_draft_blocked', 'email_message', $draft->id, 'high',
                 "to={$draft->to_email}", 'blocked: suppressed', 'blocked');
             return response()->json(['error' => 'Recipient is on the suppression list.'], 422);
+        }
+
+        // dry_run: all checks passed, no email dispatched.
+        if ($dryRun) {
+            return response()->json([
+                'dry_run'       => true,
+                'would_send_to' => $draft->to_email,
+                'subject'       => $draft->subject,
+                'draft_id'      => $draft->id,
+                'message'       => 'dry_run=true — all pre-flight checks passed. No email was sent.',
+            ]);
         }
 
         if ($isMcp) {
@@ -532,6 +611,35 @@ class EmailDraftController extends GptController
             'created_at'                   => $d->created_at?->toISOString(),
             'preview'                      => substr(strip_tags($d->body ?? ''), 0, 200),
         ];
+    }
+
+    /**
+     * Returns true for RFC-reserved or well-known placeholder addresses that
+     * should never be emailed (e.g. anything@example.com, foo@test.invalid).
+     */
+    private function isPlaceholderEmail(string $email): bool
+    {
+        $domain = strtolower(substr(strrchr($email, '@'), 1));
+
+        $blockedDomains = [
+            'example.com', 'example.org', 'example.net',
+            'test.com', 'test.org', 'test.net',
+            'placeholder.com', 'localhost',
+        ];
+
+        if (in_array($domain, $blockedDomains, true)) {
+            return true;
+        }
+
+        // RFC 2606 / RFC 6761 reserved TLDs that must never reach real SMTP.
+        $reservedTlds = ['.invalid', '.test', '.example', '.localhost', '.local'];
+        foreach ($reservedTlds as $tld) {
+            if (str_ends_with($domain, $tld)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

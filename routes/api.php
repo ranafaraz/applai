@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\Gpt\V1\Tag\TagController;
 use App\Http\Controllers\Api\Gpt\V1\OutreachPipelineController;
 use App\Http\Controllers\Api\Gpt\V1\BulkCreateController;
 use App\Http\Controllers\Api\Gpt\V1\SchedulerStatusController;
+use App\Http\Controllers\Api\Gpt\V1\EmailHealthController;
 use App\Http\Controllers\Api\Social\AiDraftController as SocialAiDraftController;
 use Illuminate\Support\Facades\Route;
 
@@ -174,6 +175,14 @@ Route::prefix('gpt/v1')
         // Scheduler status (due counts, next run times, recent failures).
         Route::get('scheduler/status', [SchedulerStatusController::class, 'show'])
             ->middleware('api.scope:scheduler:read');
+
+        // Send failures — list permanently-failed outbound emails.
+        Route::get('sends/failures', [EmailDraftController::class, 'failures'])
+            ->middleware('api.scope:drafts:read');
+
+        // Email deliverability health (SPF / DKIM / DMARC DNS check).
+        Route::get('health/email', [EmailHealthController::class, 'show'])
+            ->middleware('api.scope:drafts:read');
 
         // Replies
         Route::get('replies/recent', [ReplyController::class, 'recent'])

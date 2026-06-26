@@ -372,11 +372,14 @@ export function createCrmServer(): Server {
       },
       {
         name: 'crm_send_draft',
-        description: 'Send an email draft. For the MCP client the send happens synchronously (the confirmation gate is bypassed) and the response reflects the real delivery outcome. The draft must be in "draft" status and the recipient must not be suppressed.',
+        description: 'Send an email draft. For the MCP client the send happens synchronously (the confirmation gate is bypassed) and the response reflects the real delivery outcome. The draft must be in "draft" status and the recipient must not be suppressed. Pass dry_run=true to validate without actually sending.',
         inputSchema: {
           type: 'object',
           required: ['id'],
-          properties: { id: { type: 'number', description: 'Email draft ID' } },
+          properties: {
+            id:      { type: 'number', description: 'Email draft ID' },
+            dry_run: { type: 'boolean', description: 'If true, run all pre-flight checks but do not send the email. Useful for validating a draft before committing.' },
+          },
         },
       },
       {
@@ -686,6 +689,23 @@ export function createCrmServer(): Server {
           },
         },
       },
+      {
+        name: 'crm_list_send_failures',
+        description: 'List outbound emails that permanently failed to send (status=failed). Use this to diagnose delivery problems or surface messages that need to be retried manually.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            contact_id:     { type: 'number', description: 'Filter by contact ID' },
+            opportunity_id: { type: 'number', description: 'Filter by opportunity ID' },
+            limit:          { type: 'number', description: 'Max results (1–100, default 50)' },
+          },
+        },
+      },
+      {
+        name: 'crm_check_email_health',
+        description: 'Check DNS deliverability records (SPF, DKIM, DMARC) for the user\'s active sending domain. Returns pass/warn status and hints for any missing records.',
+        inputSchema: { type: 'object', properties: {} },
+      },
 
       // -------------------------------------------------------------------
       // Writes — documents, attachments, proposals
@@ -906,9 +926,12 @@ export function createCrmServer(): Server {
           result = await crm.post(`/email-drafts/${a.id}/send-test`, { test_email: a.test_email }, idem);
           break;
 
-        case 'crm_send_draft':
-          result = await crm.post(`/email-drafts/${a.id}/send`, {}, idem);
+        case 'crm_send_draft': {
+          const body: Record<string, unknown> = {};
+          if (a.dry_run !== undefined) body.dry_run = a.dry_run;
+          result = await crm.post(`/email-drafts/${a.id}/send`, body, idem);
           break;
+        }
 
         case 'crm_publish_linkedin_post': {
           const body: Record<string, unknown> = { action: a.action };
@@ -1022,6 +1045,14 @@ export function createCrmServer(): Server {
 
         case 'crm_cancel_followup':
           result = await crm.post(`/follow-ups/${a.id}/cancel`, payload, idem);
+          break;
+
+        case 'crm_list_send_failures':
+          result = await crm.get('/sends/failures?' + qs(a));
+          break;
+
+        case 'crm_check_email_health':
+          result = await crm.get('/health/email');
           break;
 
         // -------------------------------------------------------------------

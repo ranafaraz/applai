@@ -20,7 +20,7 @@ class SendEmailJob implements ShouldQueue
      * Maximum SMTP retry attempts. Permanent failures (suppression, limits)
      * are caught inside EmailSendingService and never reach this retry counter.
      */
-    public int $tries = 3;
+    public int $tries = 2;
 
     /** Seconds between retries (attempt 2 after 60 s, attempt 3 after 120 s). */
     public int $backoff = 60;
