@@ -86,6 +86,8 @@ class LinkedInPostController extends GptController
             }
         }
 
+        $data['post_body'] = $this->normalizePostBody($data['post_body']);
+
         $post = SocialPost::create(array_merge($data, [
             'user_id'         => $user->id,
             'tenant_id'       => $user->tenant_id,
@@ -125,6 +127,10 @@ class LinkedInPostController extends GptController
             'scheduled_at'       => 'sometimes|nullable|date|after:now',
             'timezone_display'   => 'sometimes|nullable|string|max:64',
         ]);
+
+        if (isset($data['post_body'])) {
+            $data['post_body'] = $this->normalizePostBody($data['post_body']);
+        }
 
         $bodyChanged = isset($data['post_body']) && $data['post_body'] !== $post->post_body;
 
@@ -466,6 +472,34 @@ class LinkedInPostController extends GptController
         }
 
         return $confirmation;
+    }
+
+    /**
+     * Convert plain-text post bodies (from MCP) to HTML so the CRM preview
+     * renders with proper line breaks. Content that already contains HTML tags
+     * (from the web rich editor) is returned unchanged.
+     */
+    private function normalizePostBody(string $body): string
+    {
+        if (str_contains($body, '<')) {
+            return $body;
+        }
+
+        $paragraphs = preg_split('/\n{2,}/', trim($body));
+        $html = '';
+        foreach ($paragraphs as $para) {
+            $para = trim($para);
+            if ($para === '') {
+                continue;
+            }
+            $lines = array_map(
+                static fn ($line) => htmlspecialchars($line, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                explode("\n", $para)
+            );
+            $html .= '<p>' . implode('<br>', $lines) . '</p>';
+        }
+
+        return $html ?: '<p>' . htmlspecialchars($body, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</p>';
     }
 
     private function formatPost(SocialPost $post, bool $detailed = false): array

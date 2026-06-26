@@ -63,7 +63,12 @@
             </div>
         </div>
 
-        <div class="prose prose-sm max-w-none text-slate-700 border border-slate-100 rounded-lg p-4 bg-slate-50">{!! $post->post_body !!}</div>
+        @php
+            $bodyHtml = str_contains($post->post_body ?? '', '<')
+                ? $post->post_body
+                : nl2br(e($post->post_body ?? ''));
+        @endphp
+        <div class="prose prose-sm max-w-none text-slate-700 border border-slate-100 rounded-lg p-4 bg-slate-50">{!! $bodyHtml !!}</div>
 
         @if($post->hashtagString())
             <p class="text-sm text-blue-600">{{ $post->hashtagString() }}</p>
