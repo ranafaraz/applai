@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Traits\Tenantable;
+use App\Support\RichText;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -26,6 +28,12 @@ class EmailSignature extends Model
         return [
             'is_default' => 'boolean',
         ];
+    }
+
+    /** Sanitize rich-text HTML from the WYSIWYG editor before persisting. */
+    protected function body(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => RichText::sanitizeForStorage($value));
     }
 
     public function user(): BelongsTo

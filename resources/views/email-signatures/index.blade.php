@@ -34,7 +34,11 @@
                     </div>
 
                     <div class="text-xs text-slate-600 line-clamp-4 leading-relaxed border-t border-slate-100 pt-3">
-                        {!! $signature->body ?: '<span class="text-slate-400">Image-only signature</span>' !!}
+                        @if(filled($signature->body))
+                            <x-rich-content :value="$signature->body" />
+                        @else
+                            <span class="text-slate-400">Image-only signature</span>
+                        @endif
                     </div>
 
                     <div class="flex gap-2 pt-1 border-t border-slate-100">

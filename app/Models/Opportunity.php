@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\RichText;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Model;
@@ -48,6 +50,17 @@ class Opportunity extends Model
             'deadline'         => 'date',
             'last_activity_at' => 'datetime',
         ];
+    }
+
+    /** Sanitize rich-text HTML from the WYSIWYG editor before persisting. */
+    protected function description(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => RichText::sanitizeForStorage($value));
+    }
+
+    protected function notes(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => RichText::sanitizeForStorage($value));
     }
 
     // -------------------------------------------------------------------------

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Traits\Tenantable;
+use App\Support\RichText;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -74,6 +76,12 @@ class EmailAccount extends Model
             'min_delay_seconds' => 'integer',
             'emails_sent_today' => 'integer',
         ];
+    }
+
+    /** Sanitize rich-text HTML from the WYSIWYG editor before persisting. */
+    protected function notes(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => RichText::sanitizeForStorage($value));
     }
 
     // -------------------------------------------------------------------------

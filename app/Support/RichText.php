@@ -33,6 +33,7 @@ class RichText
         'blockquote' => ['class'], 'pre' => ['class'], 'code' => ['class'],
         'ol' => ['class'], 'ul' => ['class'], 'li' => ['class'],
         'a' => ['href', 'title', 'target', 'rel', 'class'],
+        'img' => ['src', 'alt', 'title', 'width', 'height', 'style', 'class'],
     ];
 
     /** Elements removed wholesale (content discarded), not just unwrapped. */
@@ -69,6 +70,28 @@ class RichText
 
         // Plain text — escape and preserve line breaks.
         return nl2br(e($value), false);
+    }
+
+    /**
+     * Normalize a value for persistence (model set-mutators). Plain text and
+     * Markdown are stored verbatim; only actual HTML is allowlist-sanitized.
+     * A structurally-empty value (incl. Quill's "<p><br></p>") becomes null so
+     * `filled()` / nullable columns behave correctly.
+     */
+    public static function sanitizeForStorage(?string $value): ?string
+    {
+        $value = (string) $value;
+        if (trim($value) === '') {
+            return null;
+        }
+
+        if (preg_match('/<\/?[a-z][\s\S]*>/i', $value)) {
+            $clean = self::collapseEmpty(self::sanitize($value));
+
+            return $clean === '' ? null : $clean;
+        }
+
+        return $value;
     }
 
     /**
@@ -165,6 +188,14 @@ class RichText
             if ($name === 'href') {
                 if (! preg_match('#^\s*(https?:|mailto:|tel:|/|\#)#i', $attr->nodeValue)) {
                     $el->removeAttribute('href');
+                }
+            } elseif ($name === 'src') {
+                if (! preg_match('#^\s*(https?:|/|data:image/)#i', $attr->nodeValue)) {
+                    $el->removeAttribute('src');
+                }
+            } elseif ($name === 'width' || $name === 'height') {
+                if (! preg_match('/^\d+%?$/', trim($attr->nodeValue))) {
+                    $el->removeAttribute($attr->nodeName);
                 }
             } elseif ($name === 'style') {
                 $safe = self::filterStyle($attr->nodeValue);

@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Traits\Tenantable;
+use App\Support\RichText;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -50,6 +52,12 @@ class Contact extends Model
         return [
             'last_contacted_at' => 'datetime',
         ];
+    }
+
+    /** Sanitize rich-text HTML from the WYSIWYG editor before persisting. */
+    protected function notes(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => RichText::sanitizeForStorage($value));
     }
 
     // -------------------------------------------------------------------------
