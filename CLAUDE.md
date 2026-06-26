@@ -1,3 +1,31 @@
+## VPS / SSH
+
+SSH credentials are in `.env` at the project root. Use Python paramiko (available) since `sshpass` is not installed:
+
+```python
+import paramiko
+client = paramiko.SSHClient()
+client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+client.connect('162.0.211.214', port=22, username='root', password='<VPS_SSH_Password from .env>', timeout=30)
+stdin, stdout, stderr = client.exec_command("YOUR_COMMAND", timeout=120)
+print(stdout.read().decode())
+client.close()
+```
+
+Key `.env` vars: `VPS_IP`, `VPS_SSH_Port`, `VPS_SSH_Username`, `VPS_SSH_Password`.
+
+### MCP deploy sequence (after committing to main)
+
+```bash
+cd /var/www/crm.dexdevs.com && git pull origin main
+cd mcp && npm install && npm run build   # full install — NOT --omit=dev (TypeScript is a devDep)
+supervisorctl restart crm-mcp && supervisorctl status crm-mcp
+```
+
+Supervisor process name: `crm-mcp`. Web root: `/var/www/crm.dexdevs.com`.
+
+---
+
 ## Serena MCP
 
 Serena provides LSP-backed code intelligence (symbol search, find references, diagnostics, rename, etc.) via 21 tools.
