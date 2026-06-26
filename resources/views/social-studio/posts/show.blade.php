@@ -101,7 +101,8 @@
         @endif
     </div>
 
-    {{-- Actions --}}
+    {{-- Actions — hidden once published --}}
+    @if($post->status !== 'published')
     <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
         <h2 class="text-sm font-semibold text-slate-700">Actions</h2>
         <div class="flex flex-wrap gap-2">
@@ -130,7 +131,7 @@
                 </form>
             @endif
 
-            @if($post->isApproved() && ! $post->scheduled_at)
+            @if(! $post->scheduled_at && ! in_array($post->status, ['failed']))
                 <form method="POST" action="{{ route('social-studio.posts.schedule', $post->id) }}" class="flex gap-2 items-end">
                     @csrf @method('PATCH')
                     <input type="datetime-local" name="scheduled_at" required
@@ -144,7 +145,7 @@
                 </form>
             @endif
 
-            @if($post->isApproved() && $post->scheduled_at)
+            @if($post->status === 'scheduled')
                 <form method="POST" action="{{ route('social-studio.posts.cancel-schedule', $post->id) }}">
                     @csrf @method('PATCH')
                     <button type="submit" class="text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-lg transition">
@@ -154,13 +155,12 @@
             @endif
 
             @php
-                $unpublishedTargets = $post->targets->where('status', '!=', 'published');
-                $retryMode = $post->status === 'failed' && $unpublishedTargets->isNotEmpty();
+                $retryMode = $post->status === 'failed';
                 $confirmMsg = $retryMode
                     ? 'Retry publishing to all failed targets?'
-                    : 'Publish this post to all selected targets right now? This cannot be undone.';
+                    : 'Publish this post to LinkedIn right now? This cannot be undone.';
             @endphp
-            @if($post->isApproved() && $unpublishedTargets->isNotEmpty())
+            @if(! in_array($post->status, ['publishing']))
                 <form method="POST" action="{{ route('social-studio.posts.publish-now', $post->id) }}"
                       onsubmit="return confirm('{{ $confirmMsg }}')">
                     @csrf
@@ -172,6 +172,7 @@
             @endif
         </div>
     </div>
+    @endif
 
     {{-- Targets --}}
     @if($post->targets->count())

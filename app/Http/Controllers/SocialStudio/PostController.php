@@ -302,7 +302,7 @@ class PostController extends Controller
         return back()->with('success', 'Schedule cancelled. Post is approved and ready for manual publish-now.');
     }
 
-    public function publishNow(Request $request, int $id, SocialPublisherService $publisher): RedirectResponse
+    public function publishNow(Request $request, int $id, SocialPublisherService $publisher, SocialPostSchedulerService $scheduler): RedirectResponse
     {
         $request->validate(['confirm' => 'accepted']);
 
@@ -310,13 +310,25 @@ class PostController extends Controller
             ->with(['targets.account'])
             ->findOrFail($id);
 
-        if (! $post->isApproved()) {
-            return back()->with('error', 'Post must be approved before publishing.');
+        if (in_array($post->status, ['published', 'publishing'])) {
+            return back()->with('error', "Post is already {$post->status}.");
+        }
+
+        // Auto-approve draft/scheduled posts so publish can proceed
+        if ($post->approval_status !== 'approved') {
+            $post->update(['approval_status' => 'approved']);
+            $post->refresh();
         }
 
         $targets = $post->targets()->whereNot('status', 'published')->get();
+
+        // Auto-create a LinkedIn target when none exists (e.g. MCP-created posts)
         if ($targets->isEmpty()) {
-            return back()->with('error', 'No publish targets selected. Add at least one connected account or WordPress site.');
+            $target = $scheduler->ensureLinkedInTarget($post, $request->user()->id);
+            if (! $target) {
+                return back()->with('error', 'No connected LinkedIn account found. Please connect a LinkedIn account in Settings → Social Accounts.');
+            }
+            $targets = collect([$target]);
         }
 
         $results = [];
