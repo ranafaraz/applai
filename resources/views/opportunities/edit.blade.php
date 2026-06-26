@@ -136,7 +136,10 @@
                     <x-rich-editor name="notes" :value="old('notes', $opportunity->notes)" />
                 </div>
             </div>
-            <div class="flex gap-3 pt-2">
+            {{-- Sticky action bar: stays pinned to the bottom of the scroll area so
+                 the Save button is always reachable even when the rich-text editors
+                 make the form taller than the viewport. --}}
+            <div class="flex gap-3 pt-3 mt-2 sticky bottom-0 -mx-6 px-6 py-3 bg-white border-t border-slate-200 z-10">
                 <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">Update Opportunity</button>
                 <a href="{{ route('opportunities.show', $opportunity) }}" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-5 py-2 rounded-lg transition-colors">Cancel</a>
             </div>
